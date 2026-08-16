@@ -104,8 +104,10 @@ func TestRetencionYBackup(t *testing.T) {
 	if err := s.Backup(bak); err != nil {
 		t.Fatalf("backup: %v", err)
 	}
-	if err := s.Backup(bak); err == nil {
-		t.Error("backup sobre existente debe fallar")
+	// Reemplazo: un segundo backup del mismo destino lo REFRESCA (reinicio
+	// el mismo día = backup fresco, no un fallo).
+	if err := s.Backup(bak); err != nil {
+		t.Fatalf("backup sobre existente debe reemplazar: %v", err)
 	}
 	// El backup contiene el evento restante.
 	b, err := Open(bak)

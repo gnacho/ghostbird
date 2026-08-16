@@ -45,6 +45,7 @@ type Params struct {
 	Loc       *time.Location
 	Now       time.Time // now (o current_time) en UTC
 	SingleDay bool      // dateFrom == dateTo
+	SourceSet bool      // source PRESENTE en la query (aunque vacío: filtro "Direct" del Admin)
 }
 
 // ParseParams extrae y valida los params comunes del query string.
@@ -126,6 +127,24 @@ func ParseParams(q url.Values, nowFunc func() time.Time) (Params, error) {
 		}
 	}
 	p.SingleDay = p.DateFrom != "" && p.DateFrom == p.DateTo
+	// Ghost manda source= VACÍO para "Direct" (sources-card.tsx
+	// onSourceClick(isDirectTraffic ? '' : source)) y el pipe real filtra
+	// source=''. Distinguimos presente-y-vacío de ausente.
+	p.SourceSet = false
+	if vs, ok := q["source"]; ok && len(vs) > 0 {
+		p.Source = vs[0]
+		p.SourceSet = true
+	}
+
+	// Cap de rango (endurecimiento): series de años serían millones de
+	// buckets en RAM. Ghost pide como mucho 30 días.
+	if p.DateFrom != "" && p.DateTo != "" {
+		from := dayEpoch(p.DateFrom, loc)
+		to := dayEpoch(p.DateTo, loc)
+		if to >= from && (to-from)/86400 > 366 {
+			return p, fmt.Errorf("rango de fechas demasiado grande (máx 366 días)")
+		}
+	}
 	return p, nil
 }
 
@@ -224,8 +243,10 @@ func (p *Params) hitFilters(pred *strings.Builder, args *[]any, col string) {
 
 // hasSessionFilters dice si hay filtros de atributos de sesión (source,
 // device, utm_*): solo entonces se une contra los atributos del primer hit.
+// OJO: source PRESENTE y vacío ("Direct") ES un filtro de sesión — el pipe
+// real aplica {% if defined(source) %} y source = ” matchea tráfico directo.
 func (p *Params) hasSessionFilters() bool {
-	return p.Source != "" || p.Device != "" || p.UtmSource != "" ||
+	return p.SourceSet || p.Device != "" || p.UtmSource != "" ||
 		p.UtmMedium != "" || p.UtmCampaign != "" || p.UtmTerm != "" || p.UtmContent != ""
 }
 
@@ -252,13 +273,13 @@ func (p *Params) filteredSessionsSQL() (string, []any) {
 	args = append(args, p.SiteUUID)
 	b.WriteString(", fs AS (SELECT fh.session_id FROM firsthit fh INNER JOIN sfha ON sfha.session_id = fh.session_id WHERE fh.first_ts >= ? AND fh.first_ts < ?")
 	args = append(args, sfrom, sto)
-	if p.Source != "" {
-		b.WriteString(" AND fh.source = ?")
-		args = append(args, p.Source)
-	}
 	if p.Device != "" {
 		b.WriteString(" AND fh.device = ?")
 		args = append(args, p.Device)
+	}
+	if p.SourceSet {
+		b.WriteString(" AND fh.source = ?")
+		args = append(args, p.Source) // '' incluido: filtro Direct
 	}
 	for _, u := range []struct{ col, val string }{
 		{"utm_source", p.UtmSource}, {"utm_medium", p.UtmMedium}, {"utm_campaign", p.UtmCampaign},

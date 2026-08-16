@@ -24,9 +24,15 @@ type Config struct {
 }
 
 // Load parsea flags y variables de entorno. Los flags ganan si se pasan
-// explícitamente; si no, se usa GHOSTBIRD_<NOMBRE>.
+// explícitamente; si no, se usa GHOSTBIRD_<NOMBRE>. Un env malformado
+// falla el arranque (fail fast), nunca degrada en silencio al default.
 func Load() (*Config, error) {
 	c := &Config{}
+
+	retDays, err := envOrInt("RETENTION_DAYS", 0)
+	if err != nil {
+		return nil, err
+	}
 
 	flag.StringVar(&c.Addr, "addr", envOr("ADDR", ":8080"), "dirección HTTP de escucha")
 	flag.StringVar(&c.DBPath, "db", envOr("DB", "data/ghostbird.db"), "ruta del fichero SQLite")
@@ -34,7 +40,7 @@ func Load() (*Config, error) {
 	flag.StringVar(&c.AdminToken, "admin-token", envOr("ADMIN_TOKEN", ""), "secreto HS256 de los JWT de pipes (tinybird.adminToken de Ghost; vacío = sin auth)")
 	flag.StringVar(&c.StatsToken, "stats-token", envOr("STATS_TOKEN", ""), "token estático para pipes (stats.token/local.token de Ghost)")
 	flag.BoolVar(&c.TrustProxy, "trust-proxy", envOrBool("TRUST_PROXY", true), "confiar en X-Forwarded-For (IP cliente = primera entrada)")
-	flag.IntVar(&c.RetentionDays, "retention-days", envOrInt("RETENTION_DAYS", 0), "días de eventos a conservar (0 = ilimitado)")
+	flag.IntVar(&c.RetentionDays, "retention-days", retDays, "días de eventos a conservar (0 = ilimitado)")
 	flag.StringVar(&c.BackupDir, "backup-dir", envOr("BACKUP_DIR", ""), "directorio para backups diarios VACUUM INTO (vacío = sin backup)")
 	flag.StringVar(&c.LogLevel, "log-level", envOr("LOG_LEVEL", "info"), "nivel de log (debug|info|warn|error)")
 	flag.Parse()
@@ -70,14 +76,14 @@ func envOrBool(name string, def bool) bool {
 	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
-func envOrInt(name string, def int) int {
+func envOrInt(name string, def int) (int, error) {
 	v, ok := os.LookupEnv("GHOSTBIRD_" + name)
 	if !ok || strings.TrimSpace(v) == "" {
-		return def
+		return def, nil
 	}
 	n, err := strconv.Atoi(strings.TrimSpace(v))
 	if err != nil {
-		return def
+		return def, fmt.Errorf("GHOSTBIRD_%s=%q no es un entero", name, v)
 	}
-	return n
+	return n, nil
 }

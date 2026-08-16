@@ -69,16 +69,24 @@ func VerifyJWT(token, secret string) (jwtClaims, error) {
 
 // AuthorizePipe comprueba exp + scope del pipe + fixed_params.site_uuid ==
 // site_uuid de la query. Es la validación que Tinybird aplica y la que
-// Ghost espera (403 en discrepancia).
+// Ghost espera (403 en discrepancia). Fail-closed: exp obligatorio (Ghost
+// siempre firma con exp 180 min) y el scope debe fijar site_uuid.
 func (c jwtClaims) AuthorizePipe(pipe, siteUUID string, now time.Time) error {
-	if c.Exp > 0 && now.Unix() >= c.Exp {
+	if c.Exp == 0 {
+		return fmt.Errorf("token sin exp")
+	}
+	if now.Unix() >= c.Exp {
 		return fmt.Errorf("token expirado")
 	}
 	for _, s := range c.Scopes {
 		if s.Type != "PIPES:READ" || s.Resource != pipe {
 			continue
 		}
-		if fixed, ok := s.FixedParams["site_uuid"]; ok && fixed != siteUUID {
+		fixed, ok := s.FixedParams["site_uuid"]
+		if !ok || fixed == "" {
+			return fmt.Errorf("scope sin fixed_params.site_uuid")
+		}
+		if fixed != siteUUID {
 			return fmt.Errorf("fixed_params.site_uuid no coincide con la query")
 		}
 		return nil

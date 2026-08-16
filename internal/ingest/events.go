@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"net/http"
 	"strings"
 	"time"
@@ -158,17 +159,19 @@ func isBot(err error) bool {
 // authorized valida el token de ingesta: Bearer header (preferente) o
 // ?token= (lo usa el AS en modo proxy sin token en env). Sin token
 // configurado se acepta todo (igual de abierto que el collector del AS).
+// Comparación constant-time (P3 auditoría).
 func (s *Server) authorized(r *http.Request) bool {
 	if s.cfg.IngestToken == "" {
 		return true
 	}
 	if h := r.Header.Get("Authorization"); h != "" {
 		parts := strings.SplitN(h, " ", 2)
-		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && parts[1] == s.cfg.IngestToken {
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") &&
+			subtle.ConstantTimeCompare([]byte(parts[1]), []byte(s.cfg.IngestToken)) == 1 {
 			return true
 		}
 	}
-	if r.URL.Query().Get("token") == s.cfg.IngestToken {
+	if subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("token")), []byte(s.cfg.IngestToken)) == 1 {
 		return true
 	}
 	return false

@@ -7,6 +7,7 @@ package ingest
 import (
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -39,17 +40,31 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	type health struct {
-		Status string `json:"status"`
-		Events int64  `json:"events"`
-		Now    string `json:"now"`
+		Status         string `json:"status"`
+		Events         int64  `json:"events"`
+		Now            string `json:"now"`
+		LastWriteOKSec *int64 `json:"last_write_ok_sec"` // edad del último write confirmado (write-probe)
 	}
 	h := health{Status: "ok", Now: s.nowF().UTC().Format(time.RFC3339)}
 	status := http.StatusOK
 	if s.st.Ping() != nil {
 		h.Status = "degraded"
 		status = http.StatusServiceUnavailable
-	} else if n, err := s.st.CountEvents(); err == nil {
-		h.Events = n
+	} else {
+		if n, err := s.st.CountEvents(); err == nil {
+			h.Events = n
+		}
+		// Write-probe: si el último write confirmado (evento o heartbeat
+		// nocturno) supera 26 h, la BD no admite escrituras (disco lleno,
+		// fichero roto) aunque las lecturas funcionen → degradado.
+		if lw := s.st.LastWriteOK(); lw > 0 {
+			age := s.nowF().Unix() - lw
+			h.LastWriteOKSec = &age
+			if age > 26*3600 {
+				h.Status = "degraded"
+				status = http.StatusServiceUnavailable
+			}
+		}
 	}
 	writeJSON(w, status, h)
 }
@@ -86,7 +101,8 @@ func jsonError(w http.ResponseWriter, status int, msg string) {
 }
 
 // clientIP resuelve la IP del cliente. Con trust-proxy activo (default, como
-// el AS) se toma la PRIMERA entrada de X-Forwarded-For.
+// el AS) se toma la PRIMERA entrada de X-Forwarded-For (paridad con el
+// original; nótese que el cliente puede falsearla — no usar para seguridad).
 func (s *Server) clientIP(r *http.Request) string {
 	if s.cfg.TrustProxy {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
@@ -94,9 +110,9 @@ func (s *Server) clientIP(r *http.Request) string {
 			return strings.TrimSpace(first)
 		}
 	}
-	host := r.RemoteAddr
-	if i := strings.LastIndex(host, ":"); i > 0 {
-		host = host[:i]
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return strings.TrimSpace(r.RemoteAddr)
 	}
-	return strings.TrimSpace(host)
+	return host
 }

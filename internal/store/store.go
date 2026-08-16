@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -15,7 +16,11 @@ import (
 
 // Store envuelve la conexión SQLite.
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	path string
+	// lastWrite es el epoch del último write confirmado (eventos o
+	// heartbeat): healthz lo usa como write-probe (disco lleno, BD rota).
+	lastWrite atomic.Int64
 }
 
 // migrations es la lista ordenada de migraciones; el índice+1 es la versión.
@@ -87,7 +92,7 @@ func Open(path string) (*Store, error) {
 	// goroutines del propio proceso.
 	db.SetMaxOpenConns(1)
 
-	s := &Store{db: db}
+	s := &Store{db: db, path: path}
 	if err := s.migrate(); err != nil {
 		db.Close()
 		return nil, err
@@ -187,7 +192,7 @@ func nullInt(v int64) any {
 // InsertEvents inserta eventos con dedup por (site_uuid, event_id) en una
 // única transacción. Devuelve el número de filas nuevas (los duplicados se
 // ignoran: la entrega es at-least-once).
-func (s *Store) InsertEvents(now time.Time, evs []Event) (int64, error) {
+func (s *Store) InsertEvents(now time.Time, evs []Event) (n int64, err error) {
 	if len(evs) == 0 {
 		return 0, nil
 	}
@@ -214,6 +219,11 @@ func (s *Store) InsertEvents(now time.Time, evs []Event) (int64, error) {
 
 	var inserted int64
 	insertedAt := now.Unix()
+	defer func() {
+		if err == nil {
+			s.lastWrite.Store(now.Unix())
+		}
+	}()
 	for _, e := range evs {
 		res, err := stmt.Exec(
 			e.Ts, nullInt(e.ReceivedMs), e.SiteUUID, e.SessionID, e.EventID, e.Action,
@@ -286,30 +296,64 @@ func (s *Store) DeleteEventsBefore(cutoff int64) (int64, error) {
 	return res.RowsAffected()
 }
 
-// Backup crea una copia consistente de la BD con VACUUM INTO (skill
-// sqlite-ops: respeta WAL, no necesita bloquear escritores) y verifica su
-// integridad antes de devolver la ruta.
+// Backup crea una copia consistente de la BD con VACUUM INTO y verifica su
+// integridad antes de devolver la ruta. Escribe a dest+".tmp" y renombra al
+// final (un backup interrumpido nunca deja el destino del día bloqueado) y
+// corre desde una CONEXIÓN DE LECTURA DEDICADA para no ocupar la única
+// conexión de escritura (los page_hits siguen entrando durante el backup).
 func (s *Store) Backup(destPath string) error {
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return err
 	}
-	if _, err := os.Stat(destPath); err == nil {
-		return fmt.Errorf("el backup ya existe: %s", destPath)
-	}
-	if _, err := s.db.Exec(`VACUUM INTO ?`, destPath); err != nil {
-		return fmt.Errorf("vacuum into: %w", err)
-	}
-	// Verificación de integridad del fichero resultante.
-	d, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)", destPath))
+	tmp := destPath + ".tmp"
+	_ = os.Remove(tmp)
+
+	// Conexión secundaria de solo lectura: en WAL los readers no bloquean
+	// al writer; VACUUM INTO escribe sobre tmp, no sobre la BD origen.
+	d, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", s.path))
 	if err != nil {
 		return err
 	}
-	defer d.Close()
+	_, err = d.Exec(`VACUUM INTO ?`, tmp)
+	d.Close()
+	if err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("vacuum into: %w", err)
+	}
+	// Verificación de integridad del fichero resultante.
+	v, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)", tmp))
+	if err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
 	var ok string
-	if err := d.QueryRow(`PRAGMA quick_check`).Scan(&ok); err != nil || ok != "ok" {
-		return fmt.Errorf("backup corrupto (quick_check=%q err=%v)", ok, err)
+	qerr := v.QueryRow(`PRAGMA quick_check`).Scan(&ok)
+	v.Close()
+	if qerr != nil || ok != "ok" {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("backup corrupto (quick_check=%q err=%v)", ok, qerr)
+	}
+	// Rename atómico: el destino solo existe completo.
+	_ = os.Remove(destPath)
+	if err := os.Rename(tmp, destPath); err != nil {
+		_ = os.Remove(tmp)
+		return err
 	}
 	return nil
+}
+
+// TouchHeartbeat escribe el heartbeat de una fila (write-probe de healthz).
+func (s *Store) TouchHeartbeat(now time.Time) error {
+	_, err := s.db.Exec(`INSERT INTO heartbeat (id, at) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET at = excluded.at`, now.Unix())
+	if err == nil {
+		s.lastWrite.Store(now.Unix())
+	}
+	return err
+}
+
+// LastWriteOK devuelve el epoch del último write confirmado (0 = nunca).
+func (s *Store) LastWriteOK() int64 {
+	return s.lastWrite.Load()
 }
 
 // Optimize corre la rutina de mantenimiento nocturno (PRAGMA optimize +

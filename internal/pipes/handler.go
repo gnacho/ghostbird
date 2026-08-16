@@ -1,6 +1,7 @@
 package pipes
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -57,7 +58,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	data, err := h.eng.Run(pipe, p)
+	if d := time.Since(start); d > 500*time.Millisecond {
+		h.log.Warn("pipe lento", "pipe", pipe, "duracion_ms", d.Milliseconds(), "site", p.SiteUUID)
+	}
 	if err != nil {
 		h.log.Error("pipe error", "pipe", pipe, "error", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Bad Request", "message": err.Error()})
@@ -90,11 +95,16 @@ func (h *Handler) authorize(r *http.Request, pipe string) bool {
 		claims, err := VerifyJWT(bearer, h.cfg.AdminToken)
 		if err == nil {
 			querySite := q.Get("site_uuid")
-			fixed := fixedSiteUUID(claims, pipe)
-			if fixed != "" && querySite == "" {
-				q.Set("site_uuid", fixed)
-				r.URL.RawQuery = q.Encode()
-				return true
+			if querySite == "" {
+				// Inyección del site_uuid del scope (comportamiento Tinybird),
+				// PERO sin saltarse la validación completa: exp y scope se
+				// comprueban SIEMPRE en AuthorizePipe (regresión P1: antes un
+				// return temprano aquí aceptaba tokens expirados).
+				if fixed := fixedSiteUUID(claims, pipe); fixed != "" {
+					q.Set("site_uuid", fixed)
+					r.URL.RawQuery = q.Encode()
+					querySite = fixed
+				}
 			}
 			if err := claims.AuthorizePipe(pipe, querySite, h.nowF()); err != nil {
 				h.log.Warn("jwt sin permiso", "pipe", pipe, "error", err)
@@ -105,7 +115,9 @@ func (h *Handler) authorize(r *http.Request, pipe string) bool {
 		// No era JWT válido: cae al token estático si coincide.
 	}
 	if h.cfg.StatsToken != "" {
-		return bearer == h.cfg.StatsToken || r.URL.Query().Get("token") == h.cfg.StatsToken
+		ok1 := subtle.ConstantTimeCompare([]byte(bearer), []byte(h.cfg.StatsToken)) == 1
+		ok2 := subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("token")), []byte(h.cfg.StatsToken)) == 1
+		return ok1 || ok2
 	}
 	if h.cfg.AdminToken != "" {
 		return false // AdminToken configurado exige JWT (o stats-token)
@@ -199,9 +211,9 @@ func pipeMeta(pipe string) []map[string]string {
 			{"name": "visits", "type": "UInt64"},
 		}
 	default: // utm_*
-		col := strings.TrimPrefix(strings.TrimPrefix(pipe, "api_top_utm_"), "")
+		col := strings.TrimPrefix(pipe, "api_top_utm_")
 		return []map[string]string{
-			{"name": col, "type": "String"},
+			{"name": "utm_" + col, "type": "String"},
 			{"name": "visits", "type": "UInt64"},
 		}
 	}

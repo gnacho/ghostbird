@@ -96,6 +96,19 @@ func TestJWTAuth(t *testing.T) {
 		t.Errorf("expirado: %d", code)
 	}
 
+	// P1 regressión: token EXPIRADO + POST sin site_uuid (el camino exacto
+	// del Admin) también debe dar 401 — antes el fast-path de inyección se
+	// saltaba el check de exp.
+	reqE, _ := http.NewRequest(http.MethodPost, srv.URL+"/v0/pipes/api_kpis.json?token="+expTok, nil)
+	resE, err := srv.Client().Do(reqE)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resE.Body.Close()
+	if resE.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expirado sin site_uuid (camino del Admin): %d, quiero 401", resE.StatusCode)
+	}
+
 	// Secreto distinto → 401.
 	malTok, _ := SignJWT("otro-secreto", jwtClaims{Exp: now.Add(time.Hour).Unix(), Scopes: scopes})
 	if code := get(q, malTok); code != 401 {
