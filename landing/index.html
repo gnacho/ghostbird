@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GhostBird: recambio libre y autoalojado de Tinybird para Ghost</title>
+  <meta name="description" content="Pieza de sustitución autoalojada para las estadísticas nativas de Ghost 6.x. Un binario Go, un fichero SQLite, AGPL-3.0 y cero telemetría." />
+  <meta name="theme-color" content="#f4f3ef" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://ghostbird.cloudless.club/" />
+  <link rel="alternate" hreflang="es" href="https://ghostbird.cloudless.club/" />
+  <link rel="alternate" hreflang="en" href="https://ghostbird.cloudless.club/?hl=en" />
+  <link rel="alternate" hreflang="x-default" href="https://ghostbird.cloudless.club/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="GhostBird" />
+  <meta property="og:title" content="GhostBird: recambio libre y autoalojado de Tinybird para Ghost" />
+  <meta property="og:description" content="Pieza de sustitución autoalojada para las estadísticas nativas de Ghost 6.x. Un binario Go, un fichero SQLite, AGPL-3.0 y cero telemetría." />
+  <meta property="og:url" content="https://ghostbird.cloudless.club/" />
+  <meta property="og:image" content="https://ghostbird.cloudless.club/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Ficha técnica de GhostBird, con el plano del pájaro fantasma y el número de pieza GB-1" />
+  <meta property="og:locale" content="es_ES" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="GhostBird: recambio libre y autoalojado de Tinybird para Ghost" />
+  <meta name="twitter:description" content="Pieza de sustitución autoalojada para las estadísticas nativas de Ghost 6.x. Un binario Go, un fichero SQLite, AGPL-3.0 y cero telemetría." />
+  <meta name="twitter:image" content="https://ghostbird.cloudless.club/assets/og.png" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=1" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "GhostBird",
+        "url": "https://ghostbird.cloudless.club/",
+        "description": "Pieza de sustitución autoalojada y libre para las estadísticas nativas de Ghost 6.x. Un binario Go, un fichero SQLite, AGPL-3.0 y cero telemetría.",
+        "applicationCategory": "WebApplication",
+        "operatingSystem": "Linux",
+        "softwareRequirements": "Ghost 6.x",
+        "isAccessibleForFree": true,
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "publisher": { "@type": "Organization", "name": "Cloudless", "url": "https://cloudless.club/" }
+      },
+      {
+        "@type": "Organization",
+        "name": "Cloudless",
+        "url": "https://cloudless.club/",
+        "description": "Club de software libre para autohospedar. Sin nube, sin cuentas, sin datos fuera de casa.",
+        "sameAs": ["https://ko-fi.com/gnacho"],
+        "knowsAbout": ["self-hosted software", "free software", "AGPL-3.0", "digital sovereignty"]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="misc.skip">Saltar al contenido</a>
+
+  <div class="sheet">
+    <div class="doc-strip" role="presentation">
+      <span class="mono" data-i18n="doc.strip1">Ficha técnica · GB-1 · Rev 0.4</span>
+      <span class="mono">ghostbird.cloudless.club</span>
+    </div>
+
+    <nav class="nav" aria-label="Principal">
+      <a class="nav-logo mono" href="#">
+        <svg width="20" height="20" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" rx="13" fill="var(--accent)"/><path d="M32 15c-8.6 0-14.5 6.1-14.5 14.3V45h29V29.3C46.5 21.1 40.6 15 32 15z" fill="var(--sheet)"/><circle cx="26.5" cy="28.5" r="2.6" fill="var(--accent)"/><path d="M18 30l-5 3.2 5 3.2z" fill="var(--sheet)"/><path d="M37 32c4.4 1.5 5.6 5.6 3.4 10.6-1-3.8-2.6-6.6-3.4-10.6z" fill="var(--sheet)"/></svg>
+        <span data-i18n="brand">GhostBird</span>
+      </a>
+      <div class="nav-links mono">
+        <a href="#desc" data-i18n="nav.desc">Descripción</a>
+        <a href="#spec" data-i18n="nav.spec">Especificaciones</a>
+        <a href="#interfaz" data-i18n="nav.if">Interfaz</a>
+        <a href="#install" data-i18n="nav.install">Instalación</a>
+        <a href="#verify" data-i18n="nav.verify">Verificación</a>
+      </div>
+      <div class="nav-actions">
+        <select id="langSelect" class="mono" aria-label="Idioma" data-i18n-aria="appearance.lang">
+          <option value="es">ES</option>
+          <option value="en">EN</option>
+        </select>
+        <button id="themeBtn" class="icon-btn" aria-label="Cambiar tema claro u oscuro" data-i18n-aria="appearance.theme">
+          <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+        </button>
+      </div>
+    </nav>
+
+    <main id="main">
+
+      <!-- Cajetín de plano: título de la pieza -->
+      <header class="titleblock">
+        <div class="tb-drawing">
+          <svg viewBox="0 0 320 208" role="img" aria-label="Plano técnico de GhostBird, un pájaro fantasma flotando sobre una línea de referencia" data-i18n-aria="drw.alt">
+            <g class="bird">
+              <path class="ink-fill" d="M120 26 C 79 26 60 53 60 86 V 150 H 180 V 86 C 180 53 161 26 120 26 Z"/>
+              <path class="ink-fill" d="M60 94 L 38 104 L 60 114 Z"/>
+              <circle class="eye" cx="98" cy="82" r="7"/>
+              <path class="ink-fill wing" d="M148 90 C 172 97 177 122 160 148 C 155 124 146 107 148 90 Z"/>
+            </g>
+            <line class="dim-line" x1="26" y1="166" x2="214" y2="166"/>
+            <line class="dim-tick" x1="26" y1="160" x2="26" y2="172"/>
+            <line class="dim-tick" x1="214" y1="160" x2="214" y2="172"/>
+            <g class="dim">
+              <line class="dim-line" x1="60" y1="186" x2="180" y2="186"/>
+              <path class="dim-arrow" d="M60 186 l7 -3 v6 z"/>
+              <path class="dim-arrow" d="M180 186 l-7 -3 v6 z"/>
+              <line class="dim-tick" x1="60" y1="176" x2="60" y2="196"/>
+              <line class="dim-tick" x1="180" y1="176" x2="180" y2="196"/>
+              <text class="dim-text" x="120" y="204" text-anchor="middle" data-i18n="drw.dim1">1 binario Go · ~11 MB</text>
+            </g>
+            <g class="dim">
+              <line class="dim-line" x1="232" y1="26" x2="232" y2="150"/>
+              <path class="dim-arrow" d="M232 26 l-3 7 h6 z"/>
+              <path class="dim-arrow" d="M232 150 l-3 -7 h6 z"/>
+              <line class="dim-tick" x1="222" y1="26" x2="242" y2="26"/>
+              <line class="dim-tick" x1="222" y1="150" x2="242" y2="150"/>
+              <text class="dim-text" x="252" y="92" data-i18n="drw.dim2">1 fichero SQLite</text>
+            </g>
+          </svg>
+        </div>
+        <div class="tb-fields">
+          <div>
+            <h1 class="tb-name"><span class="h1-name">GhostBird</span> <span class="h1-desc" data-i18n="hero.h1desc">Recambio autoalojado para las estadísticas de Ghost</span></h1>
+            <p class="tb-lead" data-i18n="hero.lead">Sustituye al cloud propietario que alimenta las estadísticas nativas de Ghost 6. Un binario Go y un fichero SQLite en tu servidor. El dashboard nativo de Ghost funciona tal cual.</p>
+          </div>
+          <dl class="tb-grid mono">
+            <dt data-i18n="tb.no">Nº de pieza</dt><dd>GB-1</dd>
+            <dt data-i18n="tb.replaces">Sustituye a</dt><dd data-i18n="tb.replacesVal">Tinybird (servicio cloud)</dd>
+            <dt data-i18n="tb.app">Aplicación</dt><dd data-i18n="tb.appVal">Ghost 6.x, estadísticas nativas</dd>
+            <dt data-i18n="tb.material">Material</dt><dd>Go + SQLite</dd>
+            <dt data-i18n="tb.scale">Escala</dt><dd data-i18n="tb.scaleVal">1 binario · 1 fichero</dd>
+            <dt data-i18n="tb.rev">Revisión</dt><dd>0.4</dd>
+            <dt data-i18n="tb.made">Fabricación</dt><dd data-i18n="tb.madeVal">Comunidad</dd>
+          </dl>
+        </div>
+      </header>
+
+      <section class="sec" id="desc">
+        <div class="sec-num mono" aria-hidden="true">§01</div>
+        <div class="sec-body">
+          <h2 data-i18n="sec1.title">Descripción general</h2>
+          <p data-i18n="sec1.p1">GhostBird es software libre que ocupa el sitio del servicio de analítica que Ghost 6 espera encontrar fuera. Se despliega como un único binario Go de unos 11 MB, guarda los datos en un fichero SQLite y responde con el mismo protocolo que la pieza original, hasta el último endpoint. No añade servicios intermedios: el dashboard nativo de Ghost sigue donde estaba, alimentado por datos que no salen de tu servidor.</p>
+        </div>
+        <aside class="sec-note">
+          <span class="note-tag mono" data-i18n="sec1.noteTag">Nota 1</span>
+          <p data-i18n="sec1.note">Ghost sigue creyendo que habla con Tinybird. No es un disfraz: es compatibilidad con el contrato.</p>
+        </aside>
+      </section>
+
+      <section class="sec" id="motivo">
+        <div class="sec-num mono" aria-hidden="true">§02</div>
+        <div class="sec-body">
+          <h2 data-i18n="sec2.title">Motivo de la sustitución</h2>
+          <p class="bulletin-tag mono" data-i18n="sec2.tag">Boletín de servicio</p>
+          <p data-i18n="sec2.p1">Desde Ghost 6, las estadísticas nativas se apoyan en Tinybird, un servicio en la nube de código cerrado. Quien autoaloja Ghost se queda con un panel vacío, o manda los datos de sus lectores a un cloud ajeno. El fabricante no vende la pieza por separado.</p>
+          <p data-i18n="sec2.p2">GhostBird es el recambio que faltaba en el catálogo: libre y autoalojado, fiel al contrato original.</p>
+        </div>
+        <aside class="sec-note">
+          <span class="note-tag mono warn" data-i18n="sec2.noteTag">Precaución</span>
+          <p data-i18n="sec2.note">La pieza original no se compra. Se sustituye.</p>
+        </aside>
+      </section>
+
+      <section class="sec" id="spec">
+        <div class="sec-num mono" aria-hidden="true">§03</div>
+        <div class="sec-body">
+          <h2 data-i18n="sec3.title">Especificaciones</h2>
+          <table class="spec">
+            <caption class="sr-only" data-i18n="sec3.title">Especificaciones</caption>
+            <tbody>
+              <tr><th scope="row" data-i18n="spec.mass.k">Masa (binario)</th><td class="mono" data-i18n="spec.mass.v">~11 MB, Go estático</td></tr>
+              <tr><th scope="row" data-i18n="spec.storage.k">Almacenamiento</th><td class="mono" data-i18n="spec.storage.v">1 fichero SQLite (WAL)</td></tr>
+              <tr><th scope="row" data-i18n="spec.middle.k">Servicios intermedios</th><td class="mono" data-i18n="spec.middle.v">0 (collector integrado)</td></tr>
+              <tr><th scope="row" data-i18n="spec.telemetry.k">Telemetría propia</th><td class="mono">0</td></tr>
+              <tr><th scope="row" data-i18n="spec.egress.k">Datos que salen de tu servidor</th><td class="mono">0</td></tr>
+              <tr><th scope="row" data-i18n="spec.sessions.k">Sesiones</th><td data-i18n="spec.sessions.v">Agregadas en tabla propia; rápida con millones de eventos</td></tr>
+              <tr><th scope="row" data-i18n="spec.metrics.k">Métricas</th><td class="mono" data-i18n="spec.metrics.v">/metrics en formato Prometheus</td></tr>
+              <tr><th scope="row" data-i18n="spec.backups.k">Copias de seguridad</th><td data-i18n="spec.backups.v">Diarias, VACUUM INTO verificadas, rotación de 14 días</td></tr>
+              <tr><th scope="row" data-i18n="spec.license.k">Licencia</th><td class="mono" data-i18n="spec.license.v">AGPL-3.0, para siempre</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <aside class="sec-note" aria-hidden="true"></aside>
+      </section>
+
+      <section class="sec" id="interfaz">
+        <div class="sec-num mono" aria-hidden="true">§04</div>
+        <div class="sec-body">
+          <h2 data-i18n="sec4.title">Interfaz</h2>
+          <table class="spec">
+            <caption class="sr-only" data-i18n="sec4.title">Interfaz</caption>
+            <thead>
+              <tr><th scope="col" data-i18n="if.h1">Conexión</th><th scope="col" data-i18n="if.h2">Detalle</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row" class="mono">Collector</th><td class="mono" data-i18n="if.collector">POST /api/v1/page_hit, a donde apunta el tracker de Ghost</td></tr>
+              <tr><th scope="row" class="mono">Events API</th><td class="mono" data-i18n="if.events">POST /v0/events, compatible con el collector oficial</td></tr>
+              <tr><th scope="row" data-i18n="if.pipes.k">Consultas</th><td class="mono" data-i18n="if.pipes.v">Los 13 pipes v1 del protocolo Tinybird</td></tr>
+              <tr><th scope="row" data-i18n="if.auth.k">Autenticación</th><td data-i18n="if.auth.v">JWT HS256 firmado por Ghost; tokens estáticos opcionales</td></tr>
+              <tr><th scope="row" data-i18n="if.browser.k">Navegador del admin</th><td data-i18n="if.browser.v">Consultas directas desde el navegador, con CORS</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <aside class="sec-note">
+          <span class="note-tag mono" data-i18n="sec4.noteTag">Nota 2</span>
+          <p data-i18n="sec4.note">El panel que verás es el de Ghost. El de siempre.</p>
+        </aside>
+      </section>
+
+      <section class="sec" id="install">
+        <div class="sec-num mono" aria-hidden="true">§05</div>
+        <div class="sec-body">
+          <h2 data-i18n="sec5.title">Instalación</h2>
+          <ol class="steps">
+            <li><span class="step-n mono" aria-hidden="true">1</span><p data-i18n="inst.s1">Arranca el binario en tu servidor, junto a Ghost. Una unit de systemd con usuario dedicado es lo cómodo; el README trae una de ejemplo.</p></li>
+            <li><span class="step-n mono" aria-hidden="true">2</span><p data-i18n="inst.s2">En la configuración de Ghost, bloque tinybird: apunta el tracker y las stats a tu GhostBird, con el mismo adminToken en ambos lados.</p></li>
+            <li><span class="step-n mono" aria-hidden="true">3</span><p data-i18n="inst.s3">Reinicia Ghost y abre el panel de estadísticas.</p></li>
+          </ol>
+          <p class="inst-data mono" data-i18n="inst.data">Tiempo medio de sustitución: minutos. Herramientas: ninguna.</p>
+          <figure class="code-fig">
+            <figcaption class="mono">config.production.json</figcaption>
+            <pre class="mono"><code>{
+  "tinybird": {
+    "workspaceId": "ghostbird-local",
+    "adminToken": "&lt;el mismo secreto que en GhostBird&gt;",
+    "tracker": { "endpoint": "https://TU-SITIO/ghb/api/v1/page_hit" },
+    "stats": {
+      "endpoint": "http://127.0.0.1:18181",
+      "endpointBrowser": "https://TU-SITIO/ghb"
+    }
+  }
+}</code></pre>
+          </figure>
+        </div>
+        <aside class="sec-note" aria-hidden="true"></aside>
+      </section>
+
+      <section class="sec" id="verify">
+        <div class="sec-num mono" aria-hidden="true">§06</div>
+        <div class="sec-body">
+          <h2 data-i18n="sec6.title">Verificación y calidad</h2>
+          <ul class="checks">
+            <li data-i18n="v.li1">Pasa la suite de tests oficial del proveedor original, contra el mismo fixture: misma entrada, misma salida.</li>
+            <li data-i18n="v.li2">/healthz avisa si la base de datos deja de admitir escrituras, con el disco lleno incluido.</li>
+            <li data-i18n="v.li3">/metrics expone latencia y volumen por consulta, en formato Prometheus.</li>
+          </ul>
+        </div>
+        <aside class="sec-note">
+          <span class="note-tag mono" data-i18n="sec6.noteTag">Nota 3</span>
+          <p data-i18n="sec6.note">La fidelidad no es una promesa. Es un test que se ejecuta.</p>
+        </aside>
+      </section>
+
+      <section class="sec" id="noconfundir">
+        <div class="sec-num mono" aria-hidden="true">§07</div>
+        <div class="sec-body">
+          <h2 data-i18n="sec7.title">No confundir con</h2>
+          <p data-i18n="sec7.p1">Umami, Plausible o GoatCounter cuentan visitas desde su propio panel, y lo hacen bien. GhostBird no añade otro panel que instalar y aprender: te devuelve el que ya tienes. Y ese panel entiende cosas que un contador genérico no ve, como qué visitas son de miembros de tu publicación, o de qué post concreto vienen.</p>
+        </div>
+        <aside class="sec-note" aria-hidden="true"></aside>
+      </section>
+
+      <!--
+        SLOT DE CONTENIDO A (data-slot="field-notes-1")
+        Reservado para las ideas de temas que aporte el propietario.
+        Para integrar: sustituir el <p> interior por el contenido (máx. ~3 párrafos
+        o una lista) manteniendo la clase .sec/.slot; el grid de sección y el
+        margen ya están resueltos. Borrar este comentario al rellenar.
+      -->
+      <section class="sec slot" data-slot="field-notes-1" id="apendice-a">
+        <div class="sec-num mono" aria-hidden="true">A</div>
+        <div class="sec-body">
+          <h2 class="slot-title" data-i18n="slotA.tag">Apéndice A · Notas de campo</h2>
+          <p class="slot-ph" data-i18n="slotA.p">Espacio reservado para el contenido que llegue: temas, casos y observaciones del propietario de la pieza.</p>
+        </div>
+        <aside class="sec-note" aria-hidden="true"></aside>
+      </section>
+
+      <section class="sec" id="cumplimiento">
+        <div class="sec-num mono" aria-hidden="true">§08</div>
+        <div class="sec-body">
+          <h2 data-i18n="sec8.title">Cumplimiento</h2>
+          <ul class="checks">
+            <li data-i18n="c.li1">Licencia AGPL-3.0, para siempre. Proyecto comunitario, sin empresa detrás.</li>
+            <li data-i18n="c.li2">Sin telemetría propia. Los datos de tus lectores no salen de tu servidor.</li>
+            <li data-i18n="c.li3">Pieza del club Cloudless: software libre para autohospedar.</li>
+          </ul>
+          <div class="cta-row">
+            <a class="btn btn-accent" href="https://cloudless.club/" target="_blank" rel="noopener" data-i18n="c.cta1">Conocer el club</a>
+            <a class="btn" href="https://ko-fi.com/gnacho" target="_blank" rel="noopener" data-i18n="c.cta2">Apoyar en Ko-fi</a>
+          </div>
+        </div>
+        <aside class="sec-note" aria-hidden="true"></aside>
+      </section>
+
+      <!--
+        SLOT DE CONTENIDO B (data-slot="field-notes-2")
+        Segundo hueco para temas del propietario (cierra el documento antes del
+        pie). Misma mecánica que el slot A.
+      -->
+      <section class="sec slot" data-slot="field-notes-2" id="apendice-b">
+        <div class="sec-num mono" aria-hidden="true">B</div>
+        <div class="sec-body">
+          <h2 class="slot-title" data-i18n="slotB.tag">Apéndice B · Más notas</h2>
+          <p class="slot-ph" data-i18n="slotB.p">Segundo espacio reservado. Cerrará el documento con el contenido que decida el propietario.</p>
+        </div>
+        <aside class="sec-note" aria-hidden="true"></aside>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <div class="tb-mini mono">
+        <span data-i18n="f.doc">GB-1 · Rev 0.4 · Ficha técnica</span>
+        <span data-i18n="f.made">Fabricado por personas que autohospedan.</span>
+      </div>
+      <div class="foot-links mono">
+        <a href="https://cloudless.club/" target="_blank" rel="noopener" data-i18n="f.club">El club</a>
+        <a href="https://ko-fi.com/gnacho" target="_blank" rel="noopener">Ko-fi</a>
+      </div>
+      <p class="foot-joke" data-i18n="f.joke">Software libre AGPL-3.0. Los pájaros fantasma no migran a la nube.</p>
+    </footer>
+  </div>
+
+  <script src="i18n.js?v=1"></script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>
