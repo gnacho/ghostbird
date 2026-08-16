@@ -1,6 +1,7 @@
 package pipes
 
 import (
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -104,6 +105,25 @@ func TestJWTAuth(t *testing.T) {
 	// Alias _v2 responde igual que v1 con el mismo scope (alias canónico).
 	if code := get(strings.Replace(q, "api_kpis", "api_kpis_v2", 1), tok); code != 200 {
 		t.Errorf("alias _v2: %d", code)
+	}
+
+	// Como llama el Admin real (@tinybirdco/charts): POST + token en query +
+	// SIN site_uuid (lo inyecta fixed_params del JWT).
+	reqP, _ := http.NewRequest(http.MethodPost, srv.URL+"/v0/pipes/api_kpis.json?date_from=2026-08-16&timezone=Europe%2FMadrid&token="+tok, nil)
+	resP, err := srv.Client().Do(reqP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resP.Body.Close()
+	if resP.StatusCode != 200 {
+		t.Errorf("POST con token en query sin site_uuid: %d", resP.StatusCode)
+	}
+	var resp struct {
+		Data []map[string]any `json:"data"`
+	}
+	json.NewDecoder(resP.Body).Decode(&resp)
+	if len(resp.Data) == 0 {
+		t.Error("POST sin site_uuid debe devolver datos (fixed_params)")
 	}
 }
 

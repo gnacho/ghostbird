@@ -27,9 +27,13 @@ func NewHandler(cfg *config.Config, st *store.Store, log *slog.Logger) *Handler 
 	return &Handler{cfg: cfg, eng: NewEngine(st, nowF), log: log, nowF: nowF}
 }
 
-// ServeHTTP enruta /v0/pipes/{name}.json.
+// ServeHTTP enruta /v0/pipes/{name}.json. El hook useQuery de
+// @tinybirdco/charts (el que usa el Admin de Ghost en el navegador) llama
+// con POST y el token en ?token=, sin site_uuid en la query (Tinybird lo
+// inyecta desde fixed_params del JWT): se aceptan GET y POST, Bearer y
+// ?token=, y el site_uuid puede venir del token.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "método no permitido"})
 		return
 	}
@@ -70,18 +74,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// authorize: si hay AdminToken configurado → JWT HS256 válido con scope del
-// pipe y fixed_params.site_uuid == query.site_uuid; alternativa token
-// estático (stats.token / stats.local.token de Ghost). Sin nada configurado
-// → acceso libre (modo local abierto, como tinybird-local en dev).
+// authorize: JWT HS256 válido con scope del pipe (Bearer header o ?token=)
+// y fixed_params.site_uuid == query.site_uuid si la query lo trae; el token
+// estático (stats.token/local.token) es la alternativa. Si la query NO trae
+// site_uuid, el del JWT se INYECTA en la query (comportamiento Tinybird: es
+// el mecanismo fixed_params). Sin nada configurado → modo local abierto.
 func (h *Handler) authorize(r *http.Request, pipe string) bool {
 	bearer := bearerToken(r)
+	if bearer == "" {
+		bearer = r.URL.Query().Get("token")
+	}
 	q := r.URL.Query()
 
 	if h.cfg.AdminToken != "" && bearer != "" {
 		claims, err := VerifyJWT(bearer, h.cfg.AdminToken)
 		if err == nil {
-			if err := claims.AuthorizePipe(pipe, q.Get("site_uuid"), h.nowF()); err != nil {
+			querySite := q.Get("site_uuid")
+			fixed := fixedSiteUUID(claims, pipe)
+			if fixed != "" && querySite == "" {
+				q.Set("site_uuid", fixed)
+				r.URL.RawQuery = q.Encode()
+				return true
+			}
+			if err := claims.AuthorizePipe(pipe, querySite, h.nowF()); err != nil {
 				h.log.Warn("jwt sin permiso", "pipe", pipe, "error", err)
 				return false
 			}
@@ -90,12 +105,22 @@ func (h *Handler) authorize(r *http.Request, pipe string) bool {
 		// No era JWT válido: cae al token estático si coincide.
 	}
 	if h.cfg.StatsToken != "" {
-		return bearer == h.cfg.StatsToken || q.Get("token") == h.cfg.StatsToken
+		return bearer == h.cfg.StatsToken || r.URL.Query().Get("token") == h.cfg.StatsToken
 	}
 	if h.cfg.AdminToken != "" {
 		return false // AdminToken configurado exige JWT (o stats-token)
 	}
 	return true // sin auth configurada: modo local abierto
+}
+
+// fixedSiteUUID devuelve el site_uuid forzado por el scope del pipe.
+func fixedSiteUUID(c jwtClaims, pipe string) string {
+	for _, s := range c.Scopes {
+		if s.Type == "PIPES:READ" && s.Resource == pipe {
+			return s.FixedParams["site_uuid"]
+		}
+	}
+	return ""
 }
 
 func bearerToken(r *http.Request) string {
