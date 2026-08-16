@@ -52,11 +52,86 @@ lo auto-firma Ghost con un secreto compartido, y la entrega es at-least-once (de
 | Fase | Estado | Contenido |
 |---|---|---|
 | 0. Reconocimiento | ✅ Completada | Contrato documentado (docs/). |
-| 1. MVP ingesta | ⬜ | Single binary: collector `POST /api/v1/page_hit` (bots, UA, session_id) + `POST /v0/events` (compat TrafficAnalytics) + SQLite + CORS + `/healthz`. |
-| 2. Pipes lectura | ⬜ | 13 pipes v1 + JWT HS256 scoped + `filtered_sessions` en SQLite + agregados y job de refresco. |
-| 3. Integración Ghost | ⬜ | Prueba end-to-end contra Ghost 6.x real (tracker + dashboard Admin). Ojo: SSRF guard de producción con IPs privadas. |
-| 4. Robustez | ⬜ | Retención configurable, rate limiting, backups SQLite, métricas, tests >70%. |
+| 1. MVP ingesta | ✅ Completada | Single binary: collector `POST /api/v1/page_hit` (bots, UA, session_id) + `POST /v0/events` (compat TrafficAnalytics) + SQLite + CORS + `/healthz`. |
+| 2. Pipes lectura | ✅ Completada | 13 pipes v1 + JWT HS256 scoped + `filtered_sessions` en SQLite. **Tests de fidelidad: la suite YAML oficial de Tinybird pasa entera contra el mismo fixture.** |
+| 3. Integración Ghost | ✅ Completada | Verificado end-to-end con Ghost 6.57.1 real: tracker en el HTML, page_hit del navegador real almacenado, JWT firmado por Ghost, dashboard Admin pintando "Unique visitors" y "online" desde GhostBird. |
+| 4. Robustez | 🔶 Esencial hecha | Job nocturno: purge de sales, retención configurable (`-retention-days`), backup diario verificado con VACUUM INTO + rotación 14 días (`-backup-dir`), `PRAGMA optimize`+checkpoint. Pendiente: rate limiting, métricas Prometheus, cobertura >70%. |
 | 5. Comunidad | ⬜ | README EN/ES, instalador one-liner, CI, licencia (a decidir), anuncio. |
+
+## Deploy con Ghost real (verificado con Ghost 6.57.1)
+
+GhostBird necesita ser alcanzable por (a) los navegadores de los visitantes
+(tracker) y (b) el navegador del Admin (pipes) → sírvelo bajo el mismo dominio
+que tu Ghost con nginx:
+
+```nginx
+location /ghb/ {
+    proxy_pass http://127.0.0.1:18181/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;  # imprescindible: session_id firma la IP
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+}
+```
+
+En `config.production.json` (o el env de tu Ghost):
+
+```json
+{
+  "tinybird": {
+    "workspaceId": "ghostbird-local",
+    "adminToken": "<EL MISMO secreto que pasaste a GhostBird con -admin-token>",
+    "tracker": { "endpoint": "https://TU-SITIO/ghb/api/v1/page_hit", "datasource": "analytics_events" },
+    "stats": {
+      "endpoint": "http://127.0.0.1:18181",
+      "endpointBrowser": "https://TU-SITIO/ghb"
+    }
+  }
+}
+```
+
+Notas verificadas:
+- `stats.endpoint` (server-side) puede ser `127.0.0.1` si Ghost y GhostBird
+  comparten host. OJO: el guard SSRF de Ghost bloquea IPs privadas en
+  `env: production`; con `env: development` funciona directo (así está
+  probado). En producción real usa un hostname que resuelva, o el mismo
+  dominio público (`/ghb/`).
+- Reinicia Ghost tras cambiar la config (cachea el tracker en memoria).
+- El setting BD `web_analytics` (default on) es el interruptor del dashboard.
+
+## Ejecución (Fase 1)
+
+```sh
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ghostbird ./cmd/ghostbird
+./ghostbird -addr :8080 -db data/ghostbird.db
+```
+
+Flags (equiv. env `GHOSTBIRD_ADDR`, `GHOSTBIRD_DB`, `GHOSTBIRD_INGEST_TOKEN`,
+`GHOSTBIRD_TRUST_PROXY`, `GHOSTBIRD_LOG_LEVEL`): `-ingest-token` activa la auth
+de `/v0/events` (Bearer o `?token=`); sin él queda abierta como el collector
+del AS. `-trust-proxy` (default true) toma la primera IP de X-Forwarded-For.
+
+Endpoints:
+
+| Ruta | Qué hace |
+|---|---|
+| `POST /api/v1/page_hit?name=analytics_events` | Collector: valida, filtra bots (202 stealth), enriquece (UA→os/browser/device, referrer parseado con port de @tryghost/referrer-parser, source normalizado con el mapa mv_hits, `session_id=sha256(salt:site:ip:ua)` con sal diaria por sitio) y almacena en SQLite. Responde `202 {"message":"Page hit event received"}`. |
+| `POST /v0/events?name=analytics_events[&wait=true]` | Events API (compat TrafficAnalytics como collector): NDJSON u objeto único, Bearer o `?token=`; dedup por `(site_uuid, event_id)` (at-least-once); `device=bot` se descarta. Responde `202 {"success":true}`. |
+| `GET /healthz` | `{"status":"ok","events":N}` (503 si la BD no responde). |
+
+CORS en todo el servicio: `origin *`, métodos GET/POST/PUT/DELETE/OPTIONS,
+headers `Origin, X-Requested-With, Content-Type, Accept, Authorization,
+x-site-uuid` (réplica de TrafficAnalytics; el navegador del visitante Y el del
+Admin llaman cross-origin).
+
+Eventos en tabla `events` aplanada (una fila = un page_hit, campos
+normalizados a `""`, `"undefined"`→`""` en UUIDs, `source` pre-normalizado,
+`raw` JSON canónico) + tabla `salts` (sal diaria por sitio, purge a 7 días).
+Migraciones con `PRAGMA user_version`. Single-writer (WAL, busy_timeout,
+txlock IMMEDIATE, MaxOpenConns 1).
+
+Tests: `go test -race ./...` (parsing tolerante con fixtures del e2e del AS,
+bots, derivación UA, firma, referrer port, normalización source, dedup,
+endpoints e2e con SQLite temporal).
 
 ## Decisiones registradas
 
@@ -66,3 +141,10 @@ lo auto-firma Ghost con un secreto compartido, y la entrega es at-least-once (de
 - **Dedup por `event_id`** (UNIQUE + INSERT OR IGNORE) por semántica at-least-once.
 - **SQLite single-writer** con las pragmas del stack (WAL, busy_timeout, BEGIN IMMEDIATE).
 - Sin Docker en el flujo de desarrollo del autor (pruebas en LXC si hace falta).
+- **Referrer parsing**: port fiel de `@tryghost/referrer-parser` 0.1.21 (MIT) con su mapa de
+  2.381 referers embebido (`internal/ingest/data/referrers.json` + `referrers.LICENSE`),
+  más la normalización de `source` del mapa de `mv_hits.pipe`. La autoreferencia nunca se
+  trata como interna (el AS instancia el parser sin siteUrl).
+- **os/browser se recomputan del user-agent** con las regexes literales de `mv_hits`
+  (incluye su quirk: iPhone→macos, Android→linux porque "mac"/"linux" van antes en el CASE);
+  `device` sí usa detección factual móvil-primero (es lo que el dashboard consume).
