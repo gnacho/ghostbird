@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="es" data-theme="light">
+<html lang="es" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GhostBird: recambio libre y autoalojado de Tinybird para Ghost</title>
   <meta name="description" content="Pieza de sustitución autoalojada para las estadísticas nativas de Ghost 6.x. Un binario Go, un fichero SQLite, AGPL-3.0 y cero telemetría." />
-  <meta name="theme-color" content="#f4f3ef" />
+  <meta name="theme-color" content="#0B1020" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://ghostbird.cloudless.club/" />
   <link rel="alternate" hreflang="es" href="https://ghostbird.cloudless.club/" />
@@ -19,7 +19,7 @@
   <meta property="og:image" content="https://ghostbird.cloudless.club/assets/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Ficha técnica de GhostBird, con el plano del pájaro fantasma y el número de pieza GB-1" />
+  <meta property="og:image:alt" content="GhostBird, panel oscuro con tarjeta de métricas y el pájaro fantasma: estadísticas de Ghost autoalojadas" />
   <meta property="og:locale" content="es_ES" />
   <meta property="og:locale:alternate" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -29,8 +29,8 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=2" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -55,6 +55,36 @@
         "description": "Club de software libre para autohospedar. Sin nube, sin cuentas, sin datos fuera de casa.",
         "sameAs": ["https://ko-fi.com/gnacho"],
         "knowsAbout": ["self-hosted software", "free software", "AGPL-3.0", "digital sovereignty"]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "¿Y si ya uso Umami o Plausible?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Sigue con ellos si te gustan. GhostBird no compite con un panel de análisis: te devuelve el que Ghost trae de fábrica. Además cuenta cosas que un contador genérico no modela: estado de miembro, atribución por post y visitas desde gift links." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Es fiel de verdad? ¿Es legal?",
+            "acceptedAnswer": { "@type": "Answer", "text": "La suite de tests oficial del proveedor original, publicada bajo MIT y vendorizada en el repo, corre entera contra el mismo fixture: misma entrada, misma salida. Es compatibilidad de contrato, no una copia del producto. GhostBird es independiente y no está afiliado a Ghost Foundation ni a Tinybird." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Qué rendimiento tiene?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Menos de 10 MB de RAM medidos en producción. Las consultas leen una tabla de sesiones agregada al escribir cada evento, así que el panel responde rápido aunque acumules millones de eventos. Un binario estático de unos 11 MB sin CGO." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Y los backups?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Diarios, con VACUUM INTO y verificación quick_check, con rotación de 14 días. /healthz incluye una sonda de escritura que responde 503 si la base de datos deja de admitir escrituras, con el disco lleno incluido." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Qué licencia tiene?",
+            "acceptedAnswer": { "@type": "Answer", "text": "AGPL-3.0, para siempre. Sin tier de pago ni funciones cerradas. Si lo modificas y lo sirves en un servidor público, comparte los cambios." }
+          }
+        ]
       }
     ]
   }
@@ -63,273 +93,438 @@
 <body>
   <a class="skip-link" href="#main" data-i18n="misc.skip">Saltar al contenido</a>
 
-  <div class="sheet">
-    <div class="doc-strip" role="presentation">
-      <span class="mono" data-i18n="doc.strip1">Ficha técnica · GB-1 · Rev 0.4</span>
-      <span class="mono">ghostbird.cloudless.club</span>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+      <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r="0.5" fill="currentColor"/></symbol>
+      <symbol id="i-workflow" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></symbol>
+      <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14A9 3 0 0 0 21 19V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
+      <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></symbol>
+      <symbol id="i-package" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></symbol>
+      <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+      <symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+      <symbol id="i-scale" viewBox="0 0 24 24"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></symbol>
+      <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+      <symbol id="i-newspaper" viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+      <symbol id="i-coffee" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></symbol>
+    </defs>
+  </svg>
+
+  <nav class="nav glass" aria-label="Principal">
+    <a class="nav-logo" href="#top">
+      <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" rx="14" fill="var(--logo-bg)"/><path d="M32 15c-8.6 0-14.5 6.1-14.5 14.3V45h29V29.3C46.5 21.1 40.6 15 32 15z" fill="var(--logo-ink)"/><circle cx="26.5" cy="28.5" r="2.6" fill="var(--logo-bg)"/><path d="M18 30l-5 3.2 5 3.2z" fill="var(--logo-ink)"/><path d="M37 32c4.4 1.5 5.6 5.6 3.4 10.6-1-3.8-2.6-6.6-3.4-10.6z" fill="var(--logo-accent)"/></svg>
+      <span data-i18n="brand">GhostBird</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features" data-i18n="nav.features">Funciones</a>
+      <a href="#how" data-i18n="nav.how">Cómo funciona</a>
+      <a href="#who" data-i18n="nav.who">Para quién</a>
+      <a href="#faq" data-i18n="nav.faq">FAQ</a>
     </div>
+    <div class="nav-actions">
+      <select id="langSelect" aria-label="Idioma" data-i18n-aria="appearance.lang">
+        <option value="es">ES</option>
+        <option value="en">EN</option>
+      </select>
+      <button id="themeBtn" class="icon-btn" aria-label="Cambiar tema claro u oscuro" data-i18n-aria="appearance.theme">
+        <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+      </button>
+      <a class="btn btn-primary btn-sm" href="#install" data-i18n="nav.install">Instalar</a>
+    </div>
+  </nav>
 
-    <nav class="nav" aria-label="Principal">
-      <a class="nav-logo mono" href="#">
-        <svg width="20" height="20" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" rx="13" fill="var(--accent)"/><path d="M32 15c-8.6 0-14.5 6.1-14.5 14.3V45h29V29.3C46.5 21.1 40.6 15 32 15z" fill="var(--sheet)"/><circle cx="26.5" cy="28.5" r="2.6" fill="var(--accent)"/><path d="M18 30l-5 3.2 5 3.2z" fill="var(--sheet)"/><path d="M37 32c4.4 1.5 5.6 5.6 3.4 10.6-1-3.8-2.6-6.6-3.4-10.6z" fill="var(--sheet)"/></svg>
-        <span data-i18n="brand">GhostBird</span>
-      </a>
-      <div class="nav-links mono">
-        <a href="#desc" data-i18n="nav.desc">Descripción</a>
-        <a href="#spec" data-i18n="nav.spec">Especificaciones</a>
-        <a href="#interfaz" data-i18n="nav.if">Interfaz</a>
-        <a href="#install" data-i18n="nav.install">Instalación</a>
-        <a href="#verify" data-i18n="nav.verify">Verificación</a>
-      </div>
-      <div class="nav-actions">
-        <select id="langSelect" class="mono" aria-label="Idioma" data-i18n-aria="appearance.lang">
-          <option value="es">ES</option>
-          <option value="en">EN</option>
-        </select>
-        <button id="themeBtn" class="icon-btn" aria-label="Cambiar tema claro u oscuro" data-i18n-aria="appearance.theme">
-          <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
-        </button>
-      </div>
-    </nav>
+  <main id="main">
 
-    <main id="main">
-
-      <!-- Cajetín de plano: título de la pieza -->
-      <header class="titleblock">
-        <div class="tb-drawing">
-          <svg viewBox="0 0 320 208" role="img" aria-label="Plano técnico de GhostBird, un pájaro fantasma flotando sobre una línea de referencia" data-i18n-aria="drw.alt">
-            <g class="bird">
-              <path class="ink-fill" d="M120 26 C 79 26 60 53 60 86 V 150 H 180 V 86 C 180 53 161 26 120 26 Z"/>
-              <path class="ink-fill" d="M60 94 L 38 104 L 60 114 Z"/>
-              <circle class="eye" cx="98" cy="82" r="7"/>
-              <path class="ink-fill wing" d="M148 90 C 172 97 177 122 160 148 C 155 124 146 107 148 90 Z"/>
-            </g>
-            <line class="dim-line" x1="26" y1="166" x2="214" y2="166"/>
-            <line class="dim-tick" x1="26" y1="160" x2="26" y2="172"/>
-            <line class="dim-tick" x1="214" y1="160" x2="214" y2="172"/>
-            <g class="dim">
-              <line class="dim-line" x1="60" y1="186" x2="180" y2="186"/>
-              <path class="dim-arrow" d="M60 186 l7 -3 v6 z"/>
-              <path class="dim-arrow" d="M180 186 l-7 -3 v6 z"/>
-              <line class="dim-tick" x1="60" y1="176" x2="60" y2="196"/>
-              <line class="dim-tick" x1="180" y1="176" x2="180" y2="196"/>
-              <text class="dim-text" x="120" y="204" text-anchor="middle" data-i18n="drw.dim1">1 binario Go · ~11 MB</text>
-            </g>
-            <g class="dim">
-              <line class="dim-line" x1="232" y1="26" x2="232" y2="150"/>
-              <path class="dim-arrow" d="M232 26 l-3 7 h6 z"/>
-              <path class="dim-arrow" d="M232 150 l-3 -7 h6 z"/>
-              <line class="dim-tick" x1="222" y1="26" x2="242" y2="26"/>
-              <line class="dim-tick" x1="222" y1="150" x2="242" y2="150"/>
-              <text class="dim-text" x="252" y="92" data-i18n="drw.dim2">1 fichero SQLite</text>
-            </g>
-          </svg>
-        </div>
-        <div class="tb-fields">
-          <div>
-            <h1 class="tb-name"><span class="h1-name">GhostBird</span> <span class="h1-desc" data-i18n="hero.h1desc">Recambio autoalojado para las estadísticas de Ghost</span></h1>
-            <p class="tb-lead" data-i18n="hero.lead">Sustituye al cloud propietario que alimenta las estadísticas nativas de Ghost 6. Un binario Go y un fichero SQLite en tu servidor. El dashboard nativo de Ghost funciona tal cual.</p>
+    <!-- 1. Hero -->
+    <header class="hero" id="top">
+      <svg class="hero-bird" viewBox="0 0 220 170" aria-hidden="true" focusable="false">
+        <path d="M110 14 C 71 14 52 42 52 76 V 140 H 168 V 76 C 168 42 149 14 110 14 Z"/>
+        <path d="M52 84 L 28 94 L 52 104 Z"/>
+        <circle cx="88" cy="70" r="8"/>
+        <path d="M138 78 C 164 86 170 113 152 141 C 146 115 136 97 138 78 Z"/>
+      </svg>
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow-pill"><span class="pulse-dot" aria-hidden="true"></span><span data-i18n="hero.eyebrow">Self-hosted · AGPL-3.0</span></p>
+          <h1 class="hero-title"><span data-i18n="hero.h1a">Estadísticas de Ghost,</span> <span class="grad-text" data-i18n="hero.h1g">autoalojadas</span></h1>
+          <p class="hero-sub" data-i18n="hero.sub">Sustituye al cloud propietario detrás de las estadísticas de Ghost 6: un binario Go, un fichero SQLite y el dashboard de siempre, leyendo de tu servidor.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="#install"><span data-i18n="hero.cta1">Instalar</span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+            <a class="btn btn-ghost" href="#how" data-i18n="hero.cta2">Cómo funciona</a>
           </div>
-          <dl class="tb-grid mono">
-            <dt data-i18n="tb.no">Nº de pieza</dt><dd>GB-1</dd>
-            <dt data-i18n="tb.replaces">Sustituye a</dt><dd data-i18n="tb.replacesVal">Tinybird (servicio cloud)</dd>
-            <dt data-i18n="tb.app">Aplicación</dt><dd data-i18n="tb.appVal">Ghost 6.x, estadísticas nativas</dd>
-            <dt data-i18n="tb.material">Material</dt><dd>Go + SQLite</dd>
-            <dt data-i18n="tb.scale">Escala</dt><dd data-i18n="tb.scaleVal">1 binario · 1 fichero</dd>
-            <dt data-i18n="tb.rev">Revisión</dt><dd>0.4</dd>
-            <dt data-i18n="tb.made">Fabricación</dt><dd data-i18n="tb.madeVal">Comunidad</dd>
-          </dl>
         </div>
-      </header>
-
-      <section class="sec" id="desc">
-        <div class="sec-num mono" aria-hidden="true">§01</div>
-        <div class="sec-body">
-          <h2 data-i18n="sec1.title">Descripción general</h2>
-          <p data-i18n="sec1.p1">GhostBird es software libre que ocupa el sitio del servicio de analítica que Ghost 6 espera encontrar fuera. Se despliega como un único binario Go de unos 11 MB, guarda los datos en un fichero SQLite y responde con el mismo protocolo que la pieza original, hasta el último endpoint. No añade servicios intermedios: el dashboard nativo de Ghost sigue donde estaba, alimentado por datos que no salen de tu servidor.</p>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="mock-card glass">
+            <div class="mock-head">
+              <span class="mock-dots"><i></i><i></i><i></i></span>
+              <span class="mock-title" data-i18n="mock.header">Ghost · Panel de estadísticas</span>
+            </div>
+            <div class="mock-kpi">
+              <span class="mock-kpi-label" data-i18n="mock.kpi">Visitantes únicos</span>
+              <span class="mock-kpi-row"><span class="mock-kpi-num" data-i18n="mock.n1">2.418</span><span class="mock-kpi-delta" data-i18n="mock.delta">+12,4%</span></span>
+            </div>
+            <svg class="mock-spark" viewBox="0 0 560 140" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="var(--accent)" stop-opacity="0.25"/>
+                  <stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="sparkLine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stop-color="#7FDBCA"/>
+                  <stop offset="1" stop-color="#A78BFA"/>
+                </linearGradient>
+              </defs>
+              <path class="spark-area" d="M0 112 L45 102 L90 106 L135 84 L180 92 L225 66 L270 76 L315 50 L360 60 L405 42 L450 52 L495 30 L540 40 L560 28 V140 H0 Z"/>
+              <path class="spark-line" d="M0 112 L45 102 L90 106 L135 84 L180 92 L225 66 L270 76 L315 50 L360 60 L405 42 L450 52 L495 30 L540 40 L560 28"/>
+              <circle class="spark-dot" cx="560" cy="28" r="4"/>
+            </svg>
+            <div class="mock-mini">
+              <div><span class="mm-label" data-i18n="mock.sessions">Sesiones</span><span class="mm-num" data-i18n="mock.n2">1.930</span></div>
+              <div><span class="mm-label" data-i18n="mock.views">Vistas</span><span class="mm-num" data-i18n="mock.n3">7.204</span></div>
+              <div><span class="mm-label" data-i18n="mock.sources">Fuentes</span><span class="mm-num" data-i18n="mock.n4">42</span></div>
+            </div>
+          </div>
+          <div class="mock-term glass">
+            <div class="mock-head">
+              <span class="mock-dots"><i></i><i></i><i></i></span>
+              <span class="mock-title mono">ghostbird</span>
+            </div>
+            <p class="mono term-line"><span class="term-prompt">$</span> systemctl status ghostbird</p>
+            <p class="mono term-ok"><span class="term-dot" aria-hidden="true"></span><span data-i18n="mock.term2">activo · 7,6 MB RSS · 0 conexiones salientes</span></p>
+          </div>
         </div>
-        <aside class="sec-note">
-          <span class="note-tag mono" data-i18n="sec1.noteTag">Nota 1</span>
-          <p data-i18n="sec1.note">Ghost sigue creyendo que habla con Tinybird. No es un disfraz: es compatibilidad con el contrato.</p>
-        </aside>
-      </section>
+      </div>
+    </header>
 
-      <section class="sec" id="motivo">
-        <div class="sec-num mono" aria-hidden="true">§02</div>
-        <div class="sec-body">
-          <h2 data-i18n="sec2.title">Motivo de la sustitución</h2>
-          <p class="bulletin-tag mono" data-i18n="sec2.tag">Boletín de servicio</p>
-          <p data-i18n="sec2.p1">Desde Ghost 6, las estadísticas nativas se apoyan en Tinybird, un servicio en la nube de código cerrado. Quien autoaloja Ghost se queda con un panel vacío, o manda los datos de sus lectores a un cloud ajeno. El fabricante no vende la pieza por separado.</p>
-          <p data-i18n="sec2.p2">GhostBird es el recambio que faltaba en el catálogo: libre y autoalojado, fiel al contrato original.</p>
+    <!-- 2. Marquee de protocol facts -->
+    <section class="marquee-band" aria-label="Datos del protocolo">
+      <div class="marquee">
+        <div class="marquee-track">
+          <div class="marquee-group">
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-braces"/></svg><span data-i18n="mq.1">Eventos NDJSON</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span data-i18n="mq.2">JWT HS256</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-workflow"/></svg><span data-i18n="mq.3">13 pipes v1</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-database"/></svg><span data-i18n="mq.4">SQLite WAL</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-eyeoff"/></svg><span data-i18n="mq.5">0 telemetría</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-package"/></svg><span data-i18n="mq.6">Binario ~11 MB</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span data-i18n="mq.7">Backups diarios verificados</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-activity"/></svg><span data-i18n="mq.8">/metrics Prometheus</span></span>
+          </div>
+          <div class="marquee-group" aria-hidden="true">
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-braces"/></svg><span data-i18n="mq.1">Eventos NDJSON</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span data-i18n="mq.2">JWT HS256</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-workflow"/></svg><span data-i18n="mq.3">13 pipes v1</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-database"/></svg><span data-i18n="mq.4">SQLite WAL</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-eyeoff"/></svg><span data-i18n="mq.5">0 telemetría</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-package"/></svg><span data-i18n="mq.6">Binario ~11 MB</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span data-i18n="mq.7">Backups diarios verificados</span></span>
+            <span class="fact glass"><svg class="icon" aria-hidden="true"><use href="#i-activity"/></svg><span data-i18n="mq.8">/metrics Prometheus</span></span>
+          </div>
         </div>
-        <aside class="sec-note">
-          <span class="note-tag mono warn" data-i18n="sec2.noteTag">Precaución</span>
-          <p data-i18n="sec2.note">La pieza original no se compra. Se sustituye.</p>
-        </aside>
-      </section>
+      </div>
+    </section>
 
-      <section class="sec" id="spec">
-        <div class="sec-num mono" aria-hidden="true">§03</div>
-        <div class="sec-body">
-          <h2 data-i18n="sec3.title">Especificaciones</h2>
-          <table class="spec">
-            <caption class="sr-only" data-i18n="sec3.title">Especificaciones</caption>
-            <tbody>
-              <tr><th scope="row" data-i18n="spec.mass.k">Masa (binario)</th><td class="mono" data-i18n="spec.mass.v">~11 MB, Go estático</td></tr>
-              <tr><th scope="row" data-i18n="spec.storage.k">Almacenamiento</th><td class="mono" data-i18n="spec.storage.v">1 fichero SQLite (WAL)</td></tr>
-              <tr><th scope="row" data-i18n="spec.middle.k">Servicios intermedios</th><td class="mono" data-i18n="spec.middle.v">0 (collector integrado)</td></tr>
-              <tr><th scope="row" data-i18n="spec.telemetry.k">Telemetría propia</th><td class="mono">0</td></tr>
-              <tr><th scope="row" data-i18n="spec.egress.k">Datos que salen de tu servidor</th><td class="mono">0</td></tr>
-              <tr><th scope="row" data-i18n="spec.sessions.k">Sesiones</th><td data-i18n="spec.sessions.v">Agregadas en tabla propia; rápida con millones de eventos</td></tr>
-              <tr><th scope="row" data-i18n="spec.metrics.k">Métricas</th><td class="mono" data-i18n="spec.metrics.v">/metrics en formato Prometheus</td></tr>
-              <tr><th scope="row" data-i18n="spec.backups.k">Copias de seguridad</th><td data-i18n="spec.backups.v">Diarias, VACUUM INTO verificadas, rotación de 14 días</td></tr>
-              <tr><th scope="row" data-i18n="spec.license.k">Licencia</th><td class="mono" data-i18n="spec.license.v">AGPL-3.0, para siempre</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <aside class="sec-note" aria-hidden="true"></aside>
-      </section>
+    <!-- 3. Features 2x2 -->
+    <section class="sec" id="features">
+      <div class="sec-head">
+        <p class="eyebrow" data-i18n="ft.eyebrow">Por qué GhostBird</p>
+        <h2 data-i18n="ft.title">Pieza de recambio, no prototipo</h2>
+      </div>
+      <div class="feat-grid">
+        <article class="feat glass">
+          <span class="feat-icon"><svg class="icon" aria-hidden="true"><use href="#i-plug"/></svg></span>
+          <h3 data-i18n="ft.1.t">Drop-in fiel</h3>
+          <p data-i18n="ft.1.d">Los 13 endpoints del protocolo con la semántica exacta del original: filtrado de sesiones en dos etapas, series con huecos a cero y zonas horarias.</p>
+        </article>
+        <article class="feat glass">
+          <span class="feat-icon"><svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg></span>
+          <h3 data-i18n="ft.2.t">Sesiones agregadas</h3>
+          <p data-i18n="ft.2.d">La tabla equivalente a la vista materializada del original, mantenida al escribir cada evento. El panel responde rápido aunque el histórico crezca.</p>
+        </article>
+        <article class="feat glass">
+          <span class="feat-icon"><svg class="icon" aria-hidden="true"><use href="#i-scale"/></svg></span>
+          <h3 data-i18n="ft.3.t">Métricas honestas</h3>
+          <p data-i18n="ft.3.d">Las reglas de conteo no se inventan aquí: son las del servicio original, verificadas corriendo su propia suite de tests contra el mismo fixture.</p>
+        </article>
+        <article class="feat glass">
+          <span class="feat-icon"><svg class="icon" aria-hidden="true"><use href="#i-wrench"/></svg></span>
+          <h3 data-i18n="ft.4.t">Operable por una persona</h3>
+          <p data-i18n="ft.4.d">Backups diarios verificados con rotación, healthz con sonda de escritura, retención configurable y /metrics en formato Prometheus.</p>
+        </article>
+      </div>
+    </section>
 
-      <section class="sec" id="interfaz">
-        <div class="sec-num mono" aria-hidden="true">§04</div>
-        <div class="sec-body">
-          <h2 data-i18n="sec4.title">Interfaz</h2>
-          <table class="spec">
-            <caption class="sr-only" data-i18n="sec4.title">Interfaz</caption>
-            <thead>
-              <tr><th scope="col" data-i18n="if.h1">Conexión</th><th scope="col" data-i18n="if.h2">Detalle</th></tr>
-            </thead>
-            <tbody>
-              <tr><th scope="row" class="mono">Collector</th><td class="mono" data-i18n="if.collector">POST /api/v1/page_hit, a donde apunta el tracker de Ghost</td></tr>
-              <tr><th scope="row" class="mono">Events API</th><td class="mono" data-i18n="if.events">POST /v0/events, compatible con el collector oficial</td></tr>
-              <tr><th scope="row" data-i18n="if.pipes.k">Consultas</th><td class="mono" data-i18n="if.pipes.v">Los 13 pipes v1 del protocolo Tinybird</td></tr>
-              <tr><th scope="row" data-i18n="if.auth.k">Autenticación</th><td data-i18n="if.auth.v">JWT HS256 firmado por Ghost; tokens estáticos opcionales</td></tr>
-              <tr><th scope="row" data-i18n="if.browser.k">Navegador del admin</th><td data-i18n="if.browser.v">Consultas directas desde el navegador, con CORS</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <aside class="sec-note">
-          <span class="note-tag mono" data-i18n="sec4.noteTag">Nota 2</span>
-          <p data-i18n="sec4.note">El panel que verás es el de Ghost. El de siempre.</p>
-        </aside>
-      </section>
-
-      <section class="sec" id="install">
-        <div class="sec-num mono" aria-hidden="true">§05</div>
-        <div class="sec-body">
-          <h2 data-i18n="sec5.title">Instalación</h2>
-          <ol class="steps">
-            <li><span class="step-n mono" aria-hidden="true">1</span><p data-i18n="inst.s1">Arranca el binario en tu servidor, junto a Ghost. Una unit de systemd con usuario dedicado es lo cómodo; el README trae una de ejemplo.</p></li>
-            <li><span class="step-n mono" aria-hidden="true">2</span><p data-i18n="inst.s2">En la configuración de Ghost, bloque tinybird: apunta el tracker y las stats a tu GhostBird, con el mismo adminToken en ambos lados.</p></li>
-            <li><span class="step-n mono" aria-hidden="true">3</span><p data-i18n="inst.s3">Reinicia Ghost y abre el panel de estadísticas.</p></li>
-          </ol>
-          <p class="inst-data mono" data-i18n="inst.data">Tiempo medio de sustitución: minutos. Herramientas: ninguna.</p>
-          <figure class="code-fig">
-            <figcaption class="mono">config.production.json</figcaption>
-            <pre class="mono"><code>{
-  "tinybird": {
-    "workspaceId": "ghostbird-local",
-    "adminToken": "&lt;el mismo secreto que en GhostBird&gt;",
-    "tracker": { "endpoint": "https://TU-SITIO/ghb/api/v1/page_hit" },
-    "stats": {
-      "endpoint": "http://127.0.0.1:18181",
-      "endpointBrowser": "https://TU-SITIO/ghb"
+    <!-- 4. Split cómo funciona -->
+    <section class="sec sec-split" id="how">
+      <div class="sec-copy">
+        <p class="eyebrow" data-i18n="how.eyebrow">Cómo funciona</p>
+        <h2 data-i18n="how.title">Ghost ni se entera</h2>
+        <p data-i18n="how.p1">Ghost 6 habla con Tinybird para pintar su panel de estadísticas: un cloud de código cerrado. Quien autoaloja se queda con el panel vacío, o manda los datos de sus lectores fuera. GhostBird ocupa ese sitio y responde el mismo protocolo.</p>
+        <p data-i18n="how.p2">No hay servicios intermedios que instalar: el collector está dentro del binario. El tracker sigue POSTeando, el dashboard sigue leyendo pipes y los JWT los sigue firmando Ghost. Solo que ahora todo vive en tu máquina.</p>
+        <ul class="how-list">
+          <li data-i18n="how.li1">El tracker del navegador envía los page hits a tu GhostBird.</li>
+          <li data-i18n="how.li2">El dashboard consulta los 13 pipes contra tu SQLite.</li>
+          <li data-i18n="how.li3">Ghost firma los JWT con el secreto compartido; GhostBird solo los verifica.</li>
+        </ul>
+      </div>
+      <figure class="code-card glass">
+        <figcaption class="mono"><span data-i18n="how.codeCap">Bloque tinybird de la config de Ghost</span></figcaption>
+        <pre class="mono"><code>{
+  <span class="tok-key">"tinybird"</span>: {
+    <span class="tok-key">"workspaceId"</span>: <span class="tok-str">"ghostbird"</span>,
+    <span class="tok-key">"adminToken"</span>: <span class="tok-str">"&lt;secreto compartido&gt;"</span>, <span class="tok-com" data-i18n="how.note1">// el mismo que -admin-token</span>
+    <span class="tok-key">"tracker"</span>: {
+      <span class="tok-key">"endpoint"</span>: <span class="tok-str">"https://TU-SITIO/ghb/api/v1/page_hit"</span>
+    },
+    <span class="tok-key">"stats"</span>: {
+      <span class="tok-key">"endpoint"</span>: <span class="tok-str">"http://127.0.0.1:18181"</span>,
+      <span class="tok-key">"endpointBrowser"</span>: <span class="tok-str">"https://TU-SITIO/ghb"</span>
     }
   }
 }</code></pre>
-          </figure>
-        </div>
-        <aside class="sec-note" aria-hidden="true"></aside>
-      </section>
+      </figure>
+    </section>
 
-      <section class="sec" id="verify">
-        <div class="sec-num mono" aria-hidden="true">§06</div>
-        <div class="sec-body">
-          <h2 data-i18n="sec6.title">Verificación y calidad</h2>
-          <ul class="checks">
-            <li data-i18n="v.li1">Pasa la suite de tests oficial del proveedor original, contra el mismo fixture: misma entrada, misma salida.</li>
-            <li data-i18n="v.li2">/healthz avisa si la base de datos deja de admitir escrituras, con el disco lleno incluido.</li>
-            <li data-i18n="v.li3">/metrics expone latencia y volumen por consulta, en formato Prometheus.</li>
-          </ul>
-        </div>
-        <aside class="sec-note">
-          <span class="note-tag mono" data-i18n="sec6.noteTag">Nota 3</span>
-          <p data-i18n="sec6.note">La fidelidad no es una promesa. Es un test que se ejecuta.</p>
-        </aside>
-      </section>
+    <!-- 5. Stats counters -->
+    <section class="sec stats-band" id="stats">
+      <h2 class="sr-only" data-i18n="st.sronly">Cifras de GhostBird</h2>
+      <div class="stats-grid">
+        <div class="stat glass"><span class="stat-num" data-target="13">13</span><span class="stat-label" data-i18n="st.1">pipes del protocolo, verificables</span></div>
+        <div class="stat glass"><span class="stat-num" data-target="2">2</span><span class="stat-label" data-i18n="st.2">dependencias Go directas</span></div>
+        <div class="stat glass"><span class="stat-num-wrap"><span aria-hidden="true">~</span><span class="stat-num" data-target="11">11</span><span aria-hidden="true">MB</span></span><span class="stat-label" data-i18n="st.3">pesa el binario estático</span></div>
+        <div class="stat glass"><span class="stat-num-wrap"><span aria-hidden="true">&lt;</span><span class="stat-num" data-target="10">10</span><span aria-hidden="true">MB</span></span><span class="stat-label" data-i18n="st.4">de RAM medidos en producción</span></div>
+        <div class="stat glass"><span class="stat-num" data-target="0">0</span><span class="stat-label" data-i18n="st.5">conexiones salientes</span></div>
+        <div class="stat glass"><span class="stat-num-wrap"><span class="stat-num" data-target="100">100</span><span aria-hidden="true">%</span></span><span class="stat-label" data-i18n="st.6">suite de tests del original, en verde</span></div>
+      </div>
+    </section>
 
-      <section class="sec" id="noconfundir">
-        <div class="sec-num mono" aria-hidden="true">§07</div>
-        <div class="sec-body">
-          <h2 data-i18n="sec7.title">No confundir con</h2>
-          <p data-i18n="sec7.p1">Umami, Plausible o GoatCounter cuentan visitas desde su propio panel, y lo hacen bien. GhostBird no añade otro panel que instalar y aprender: te devuelve el que ya tienes. Y ese panel entiende cosas que un contador genérico no ve, como qué visitas son de miembros de tu publicación, o de qué post concreto vienen.</p>
-        </div>
-        <aside class="sec-note" aria-hidden="true"></aside>
-      </section>
+    <!-- SLOT 1: ideas del propietario (tras stats) -->
+    <!--
+      SLOT DE CONTENIDO 1 (data-slot="field-notes-1")
+      Hueco reservado para las ideas de temas del propietario.
+      Para rellenar: sustituir el párrafo interior por el contenido final
+      (unos 2 párrafos o una lista) manteniendo la clase .slot. Borrar este
+      comentario al rellenar.
+    -->
+    <section class="sec slot" data-slot="field-notes-1" id="notas-1">
+      <div class="slot-card glass">
+        <h2 class="slot-tag" data-i18n="slotA.tag">Espacio reservado · Notas de campo 1</h2>
+        <p class="slot-ph" data-i18n="slotA.p">Hueco para el contenido que decida el propietario: temas, casos y observaciones.</p>
+      </div>
+    </section>
 
-      <!--
-        SLOT DE CONTENIDO A (data-slot="field-notes-1")
-        Reservado para las ideas de temas que aporte el propietario.
-        Para integrar: sustituir el <p> interior por el contenido (máx. ~3 párrafos
-        o una lista) manteniendo la clase .sec/.slot; el grid de sección y el
-        margen ya están resueltos. Borrar este comentario al rellenar.
-      -->
-      <section class="sec slot" data-slot="field-notes-1" id="apendice-a">
-        <div class="sec-num mono" aria-hidden="true">A</div>
-        <div class="sec-body">
-          <h2 class="slot-title" data-i18n="slotA.tag">Apéndice A · Notas de campo</h2>
-          <p class="slot-ph" data-i18n="slotA.p">Espacio reservado para el contenido que llegue: temas, casos y observaciones del propietario de la pieza.</p>
-        </div>
-        <aside class="sec-note" aria-hidden="true"></aside>
-      </section>
+    <!-- 6. Statement tipográfico -->
+    <section class="sec statement-band">
+      <p class="statement">
+        <span data-i18n="stt.a">El panel de analytics que</span>
+        <span class="grad-text" data-i18n="stt.g">ya tienes</span><span data-i18n="stt.b">, alimentado por tu servidor.</span>
+      </p>
+    </section>
 
-      <section class="sec" id="cumplimiento">
-        <div class="sec-num mono" aria-hidden="true">§08</div>
-        <div class="sec-body">
-          <h2 data-i18n="sec8.title">Cumplimiento</h2>
-          <ul class="checks">
-            <li data-i18n="c.li1">Licencia AGPL-3.0, para siempre. Proyecto comunitario, sin empresa detrás.</li>
-            <li data-i18n="c.li2">Sin telemetría propia. Los datos de tus lectores no salen de tu servidor.</li>
-            <li data-i18n="c.li3">Pieza del club Cloudless: software libre para autohospedar.</li>
-          </ul>
-          <div class="cta-row">
-            <a class="btn btn-accent" href="https://cloudless.club/" target="_blank" rel="noopener" data-i18n="c.cta1">Conocer el club</a>
-            <a class="btn" href="https://ko-fi.com/gnacho" target="_blank" rel="noopener" data-i18n="c.cta2">Apoyar en Ko-fi</a>
+    <!-- 7. Tres compromisos -->
+    <section class="sec" id="pledge">
+      <div class="sec-head">
+        <p class="eyebrow" data-i18n="exp.eyebrow">El compromiso</p>
+        <h2 data-i18n="exp.title">Tres compromisos</h2>
+      </div>
+      <div class="exp-grid">
+        <div class="exp-col">
+          <p class="exp-label" data-i18n="exp.1.label">Licencia</p>
+          <h3 data-i18n="exp.1.t">AGPL, para siempre</h3>
+          <p data-i18n="exp.1.p">No es open core: no hay funciones guardadas para un plan de pago, porque no hay plan de pago. Si modificas GhostBird y lo sirves en público, el AGPL pide compartir los cambios. Esa cláusula es el punto, no la letra pequeña.</p>
+        </div>
+        <div class="exp-col">
+          <p class="exp-label" data-i18n="exp.2.label">Gobierno</p>
+          <h3 data-i18n="exp.2.t">Community driven</h3>
+          <p data-i18n="exp.2.p">Issues, parches y decisiones de rumbo a la vista. El proyecto sirve a sitios reales en producción desde el día uno, así que se mantiene, no se arrincona.</p>
+        </div>
+        <div class="exp-col">
+          <p class="exp-label" data-i18n="exp.3.label">Privacidad</p>
+          <h3 data-i18n="exp.3.t">Los datos no salen</h3>
+          <p data-i18n="exp.3.p">Sin telemetría, sin phone-home, sin estadísticas anónimas de uso. El binario no abre conexiones salientes más que las que configures, y por defecto ninguna.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. Para quién -->
+    <section class="sec" id="who">
+      <div class="sec-head">
+        <p class="eyebrow" data-i18n="who.eyebrow">Para quién</p>
+        <h2 data-i18n="who.title">Hecho para quien autoaloja Ghost</h2>
+      </div>
+      <div class="who-grid">
+        <article class="who-card glass">
+          <span class="feat-icon"><svg class="icon" aria-hidden="true"><use href="#i-newspaper"/></svg></span>
+          <h3 data-i18n="who.1.t">Publishers con Ghost self-hosted</h3>
+          <p data-i18n="who.1.d">Tu pestaña de estadísticas vuelve a funcionar tal cual, con métricas que entienden miembros, posts y gift links.</p>
+        </article>
+        <article class="who-card glass">
+          <span class="feat-icon"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg></span>
+          <h3 data-i18n="who.2.t">Comunidades y clubes</h3>
+          <p data-i18n="who.2.d">Webs colectivas que no quieren mandar los datos de sus lectores a un cloud ajeno para tener un panel.</p>
+        </article>
+        <article class="who-card glass">
+          <span class="feat-icon"><svg class="icon" aria-hidden="true"><use href="#i-briefcase"/></svg></span>
+          <h3 data-i18n="who.3.t">Agencias y freelancers</h3>
+          <p data-i18n="who.3.d">Mantienes Ghost para clientes sin sumar otra factura, otra cuenta o otro panel que aprender.</p>
+        </article>
+        <article class="who-card glass">
+          <span class="feat-icon"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg></span>
+          <h3 data-i18n="who.4.t">Puristas de la privacidad</h3>
+          <p data-i18n="who.4.d">Cero conexiones salientes, un SQLite auditable y AGPL. Lo mínimo, bien hecho.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- 9. FAQ -->
+    <section class="sec" id="faq">
+      <div class="sec-head">
+        <p class="eyebrow" data-i18n="faq.eyebrow">Dudas razonables</p>
+        <h2 data-i18n="faq.title">Preguntas frecuentes</h2>
+      </div>
+      <div class="faq-list">
+        <div class="faq-item glass open">
+          <h3>
+            <button class="faq-q" aria-expanded="true" aria-controls="faq-p1" id="faq-q1">
+              <span data-i18n="faq.q1">¿Y si ya uso Umami o Plausible?</span>
+              <svg class="icon faq-chev" aria-hidden="true"><use href="#i-chevron"/></svg>
+            </button>
+          </h3>
+          <div class="faq-a" id="faq-p1" role="region" aria-labelledby="faq-q1">
+            <div class="faq-a-inner"><p data-i18n="faq.a1">Sigue con ellos si te gustan. GhostBird no compite con un panel de análisis: te devuelve el que Ghost trae de fábrica. Además cuenta cosas que un contador genérico no modela: estado de miembro (free, paid, comped, gift), atribución por post y visitas desde gift links.</p></div>
           </div>
         </div>
-        <aside class="sec-note" aria-hidden="true"></aside>
-      </section>
-
-      <!--
-        SLOT DE CONTENIDO B (data-slot="field-notes-2")
-        Segundo hueco para temas del propietario (cierra el documento antes del
-        pie). Misma mecánica que el slot A.
-      -->
-      <section class="sec slot" data-slot="field-notes-2" id="apendice-b">
-        <div class="sec-num mono" aria-hidden="true">B</div>
-        <div class="sec-body">
-          <h2 class="slot-title" data-i18n="slotB.tag">Apéndice B · Más notas</h2>
-          <p class="slot-ph" data-i18n="slotB.p">Segundo espacio reservado. Cerrará el documento con el contenido que decida el propietario.</p>
+        <div class="faq-item glass">
+          <h3>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-p2" id="faq-q2">
+              <span data-i18n="faq.q2">¿Es fiel de verdad? ¿Es legal?</span>
+              <svg class="icon faq-chev" aria-hidden="true"><use href="#i-chevron"/></svg>
+            </button>
+          </h3>
+          <div class="faq-a" id="faq-p2" role="region" aria-labelledby="faq-q2">
+            <div class="faq-a-inner"><p data-i18n="faq.a2">La suite de tests oficial del proveedor original, publicada bajo MIT y vendorizada en el repo, corre entera contra el mismo fixture: misma entrada, misma salida. Es compatibilidad de contrato, no una copia del producto. GhostBird es independiente y no está afiliado a Ghost Foundation ni a Tinybird.</p></div>
+          </div>
         </div>
-        <aside class="sec-note" aria-hidden="true"></aside>
-      </section>
-
-    </main>
-
-    <footer class="footer">
-      <div class="tb-mini mono">
-        <span data-i18n="f.doc">GB-1 · Rev 0.4 · Ficha técnica</span>
-        <span data-i18n="f.made">Fabricado por personas que autohospedan.</span>
+        <div class="faq-item glass">
+          <h3>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-p3" id="faq-q3">
+              <span data-i18n="faq.q3">¿Qué rendimiento tiene?</span>
+              <svg class="icon faq-chev" aria-hidden="true"><use href="#i-chevron"/></svg>
+            </button>
+          </h3>
+          <div class="faq-a" id="faq-p3" role="region" aria-labelledby="faq-q3">
+            <div class="faq-a-inner"><p data-i18n="faq.a3">Menos de 10 MB de RAM medidos en producción. Las consultas leen una tabla de sesiones agregada al escribir cada evento, así que el panel responde rápido aunque acumules millones de eventos. Un binario estático de unos 11 MB sin CGO.</p></div>
+          </div>
+        </div>
+        <div class="faq-item glass">
+          <h3>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-p4" id="faq-q4">
+              <span data-i18n="faq.q4">¿Y los backups?</span>
+              <svg class="icon faq-chev" aria-hidden="true"><use href="#i-chevron"/></svg>
+            </button>
+          </h3>
+          <div class="faq-a" id="faq-p4" role="region" aria-labelledby="faq-q4">
+            <div class="faq-a-inner"><p data-i18n="faq.a4">Diarios, con VACUUM INTO y verificación quick_check, con rotación de 14 días. /healthz incluye una sonda de escritura que responde 503 si la base de datos deja de admitir escrituras, con el disco lleno incluido.</p></div>
+          </div>
+        </div>
+        <div class="faq-item glass">
+          <h3>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-p5" id="faq-q5">
+              <span data-i18n="faq.q5">¿Qué licencia tiene?</span>
+              <svg class="icon faq-chev" aria-hidden="true"><use href="#i-chevron"/></svg>
+            </button>
+          </h3>
+          <div class="faq-a" id="faq-p5" role="region" aria-labelledby="faq-q5">
+            <div class="faq-a-inner"><p data-i18n="faq.a5">AGPL-3.0, para siempre. Sin tier de pago ni funciones cerradas. Si lo modificas y lo sirves en un servidor público, comparte los cambios.</p></div>
+          </div>
+        </div>
       </div>
-      <div class="foot-links mono">
-        <a href="https://cloudless.club/" target="_blank" rel="noopener" data-i18n="f.club">El club</a>
-        <a href="https://ko-fi.com/gnacho" target="_blank" rel="noopener">Ko-fi</a>
-      </div>
-      <p class="foot-joke" data-i18n="f.joke">Software libre AGPL-3.0. Los pájaros fantasma no migran a la nube.</p>
-    </footer>
-  </div>
+    </section>
 
-  <script src="i18n.js?v=1"></script>
-  <script src="app.js?v=1"></script>
+    <!-- SLOT 2: ideas del propietario (tras FAQ) -->
+    <!--
+      SLOT DE CONTENIDO 2 (data-slot="field-notes-2")
+      Segundo hueco para temas del propietario, antes del CTA final.
+      Misma mecánica que el slot 1.
+    -->
+    <section class="sec slot" data-slot="field-notes-2" id="notas-2">
+      <div class="slot-card glass">
+        <h2 class="slot-tag" data-i18n="slotB.tag">Espacio reservado · Notas de campo 2</h2>
+        <p class="slot-ph" data-i18n="slotB.p">Segundo hueco para el contenido que decida el propietario.</p>
+      </div>
+    </section>
+
+    <!-- 10. CTA final -->
+    <section class="sec install-band" id="install">
+      <div class="install-card glass">
+        <p class="eyebrow" data-i18n="inst.eyebrow">Instalación</p>
+        <h2 data-i18n="inst.title">Instala GhostBird hoy</h2>
+        <p class="inst-p" data-i18n="inst.p">El instalador crea un usuario dedicado, una unit de systemd endurecida y un token aleatorio que se muestra una sola vez. Después, dos URLs en la config de Ghost y a correr.</p>
+        <div class="cmd-block">
+          <div class="cmd-head">
+            <span class="mono" data-i18n="inst.cmd1label">One-liner (repo público)</span>
+            <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/gnacho/ghostbird/main/install.sh | sh" data-i18n-aria="inst.copy"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label" data-i18n="inst.copy">Copiar</span></button>
+          </div>
+          <pre class="mono"><code>curl -fsSL https://raw.githubusercontent.com/gnacho/ghostbird/main/install.sh | sh</code></pre>
+        </div>
+        <div class="cmd-block">
+          <div class="cmd-head">
+            <span class="mono" data-i18n="inst.cmd2label">Desde fuente</span>
+            <button class="copy-btn" data-copy="CGO_ENABLED=0 go build -trimpath -ldflags &quot;-s -w&quot; -o ghostbird ./cmd/ghostbird" data-i18n-aria="inst.copy"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label" data-i18n="inst.copy">Copiar</span></button>
+          </div>
+          <pre class="mono"><code>CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ghostbird ./cmd/ghostbird</code></pre>
+        </div>
+        <p class="inst-note" data-i18n="inst.note">El one-liner necesita el repositorio público; las releases traen binarios linux amd64 y arm64 con checksums.</p>
+        <div class="cta-row center">
+          <a class="btn btn-primary" href="https://github.com/gnacho/ghostbird" target="_blank" rel="noopener"><span data-i18n="inst.gh">Ver el repo</span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="btn btn-ghost" href="https://ko-fi.com/gnacho" target="_blank" rel="noopener" data-i18n="inst.kofi">Apoyar en Ko-fi</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11. Marquee de texto final -->
+    <section class="marquee-band end-band" aria-label="Resumen">
+      <div class="marquee marquee-text">
+        <div class="marquee-track">
+          <div class="marquee-group"><span data-i18n="em.text">Self-hosted · AGPL-3.0 · Sin telemetría · Un binario · Un fichero SQLite · Drop-in para Ghost 6 · Sin nube ajena</span></div>
+          <div class="marquee-group" aria-hidden="true"><span data-i18n="em.text">Self-hosted · AGPL-3.0 · Sin telemetría · Un binario · Un fichero SQLite · Drop-in para Ghost 6 · Sin nube ajena</span></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="foot-inner">
+      <div class="foot-brand">
+        <a class="nav-logo" href="#top">
+          <svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" rx="14" fill="var(--logo-bg)"/><path d="M32 15c-8.6 0-14.5 6.1-14.5 14.3V45h29V29.3C46.5 21.1 40.6 15 32 15z" fill="var(--logo-ink)"/><circle cx="26.5" cy="28.5" r="2.6" fill="var(--logo-bg)"/><path d="M18 30l-5 3.2 5 3.2z" fill="var(--logo-ink)"/><path d="M37 32c4.4 1.5 5.6 5.6 3.4 10.6-1-3.8-2.6-6.6-3.4-10.6z" fill="var(--logo-accent)"/></svg>
+          <span data-i18n="brand">GhostBird</span>
+        </a>
+        <p data-i18n="f.tag">Software libre para autohospedar, del club Cloudless.</p>
+      </div>
+      <div class="foot-links">
+        <a href="https://cloudless.club/" target="_blank" rel="noopener" data-i18n="f.club">club cloudless.club</a>
+        <a href="https://ko-fi.com/gnacho" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-coffee"/></svg><span data-i18n="f.kofi">ko-fi.com/gnacho</span></a>
+        <a href="https://github.com/gnacho/ghostbird" target="_blank" rel="noopener" data-i18n="f.gh">GitHub</a>
+      </div>
+      <p class="foot-legal" data-i18n="f.notaff">Proyecto independiente. Sin afiliación con Ghost Foundation ni Tinybird.</p>
+      <p class="foot-copy">© 2026 GhostBird · AGPL-3.0</p>
+    </div>
+  </footer>
+
+  <script src="i18n.js?v=2"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
