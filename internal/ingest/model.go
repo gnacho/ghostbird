@@ -131,13 +131,13 @@ func (r *PageHitRequest) Normalizar(siteUUIDHeader, headerUA string) (EventoEntr
 		e.SiteUUID = siteUUIDHeader
 	}
 
-	pathname := str(r.Payload.Pathname)
+	pathname := capStr(str(r.Payload.Pathname))
 	if pathname == "" {
 		return e, fmt.Errorf("payload.pathname vacío")
 	}
 	e.Pathname = pathname
 
-	ua := str(r.Payload.UserAgent)
+	ua := capStr(str(r.Payload.UserAgent))
 	if ua == "" {
 		ua = headerUA // tolerante: el header es obligatorio de todas formas
 	}
@@ -146,32 +146,32 @@ func (r *PageHitRequest) Normalizar(siteUUIDHeader, headerUA string) (EventoEntr
 		return e, fmt.Errorf("user-agent vacío")
 	}
 
-	e.Locale = str(r.Payload.Locale)
-	e.Location = str(r.Payload.Location)
-	e.Href = str(r.Payload.Href)
-	e.EventID = str(r.Payload.EventID)
+	e.Locale = capStr(str(r.Payload.Locale))
+	e.Location = capStr(str(r.Payload.Location))
+	e.Href = capStr(str(r.Payload.Href))
+	e.EventID = capStr(str(r.Payload.EventID))
 	e.PostUUID = strUndefined(r.Payload.PostUUID)
 	e.PostType = def(str(r.Payload.PostType), "null")
 	e.MemberUUID = strUndefined(r.Payload.MemberUUID)
-	e.MemberStatus = def(str(r.Payload.MemberStatus), "undefined")
-	e.GiftLink = str(r.Payload.GiftLink)
-	e.UtmSource = str(r.Payload.UtmSource)
-	e.UtmMedium = str(r.Payload.UtmMedium)
-	e.UtmCampaign = str(r.Payload.UtmCampaign)
-	e.UtmTerm = str(r.Payload.UtmTerm)
-	e.UtmContent = str(r.Payload.UtmContent)
+	e.MemberStatus = capStr(def(str(r.Payload.MemberStatus), "undefined"))
+	e.GiftLink = capStr(str(r.Payload.GiftLink))
+	e.UtmSource = capStr(str(r.Payload.UtmSource))
+	e.UtmMedium = capStr(str(r.Payload.UtmMedium))
+	e.UtmCampaign = capStr(str(r.Payload.UtmCampaign))
+	e.UtmTerm = capStr(str(r.Payload.UtmTerm))
+	e.UtmContent = capStr(str(r.Payload.UtmContent))
 
 	if r.Payload.ParsedReferrer != nil {
-		e.ReferrerURLIn = str(r.Payload.ParsedReferrer.URL)
-		e.ReferrerSrcIn = str(r.Payload.ParsedReferrer.Source)
-		e.ReferrerMedIn = str(r.Payload.ParsedReferrer.Medium)
+		e.ReferrerURLIn = capStr(str(r.Payload.ParsedReferrer.URL))
+		e.ReferrerSrcIn = capStr(str(r.Payload.ParsedReferrer.Source))
+		e.ReferrerMedIn = capStr(str(r.Payload.ParsedReferrer.Medium))
 	}
-	e.DeviceIn = str(r.Payload.Device)
-	e.OSIn = str(r.Payload.OS)
-	e.BrowserIn = str(r.Payload.Browser)
-	e.ReferrerURLSrv = r.Payload.ReferrerURL
-	e.ReferrerSrcSrv = r.Payload.ReferrerSource
-	e.ReferrerMedSrv = r.Payload.ReferrerMedium
+	e.DeviceIn = capStr(str(r.Payload.Device))
+	e.OSIn = capStr(str(r.Payload.OS))
+	e.BrowserIn = capStr(str(r.Payload.Browser))
+	e.ReferrerURLSrv = capPtr(r.Payload.ReferrerURL)
+	e.ReferrerSrcSrv = capPtr(r.Payload.ReferrerSource)
+	e.ReferrerMedSrv = capPtr(r.Payload.ReferrerMedium)
 	if r.Payload.Meta != nil {
 		e.ReceivedTsStr = r.Payload.Meta.ReceivedTimestamp
 	}
@@ -183,6 +183,28 @@ func def(v, d string) string {
 		return d
 	}
 	return v
+}
+
+// fieldCap acota campos de texto en ingesta: un pathname/UA/href real no
+// pasa de unos cientos de bytes; sin cap, un evento hostil de /v0/events
+// podía almacenar ~4 MB en un solo campo (y viajar en los pipes).
+const fieldCap = 2048
+
+// capStr trunca por BYTES (el corte puede partir un rune multibyte: da igual
+// para un valor hostil; los valores legítimos nunca llegan al cap).
+func capStr(s string) string {
+	if len(s) > fieldCap {
+		return s[:fieldCap]
+	}
+	return s
+}
+
+func capPtr(p *string) *string {
+	if p == nil {
+		return nil
+	}
+	v := capStr(*p)
+	return &v
 }
 
 // esGUID valida forma 8-4-4-4-12 hex (sin validar versión/variante RFC,
@@ -231,6 +253,9 @@ func ProcesadoAEntrante(raw []byte) (EventoEntrante, string, error) {
 	e, err := req.Normalizar(doc.SiteUUID, "")
 	if err != nil {
 		return EventoEntrante{}, "", err
+	}
+	if len(doc.SessionID) > 128 {
+		doc.SessionID = doc.SessionID[:128]
 	}
 	// El timestamp raíz (hora de ingesta del AS) es el canónico del evento.
 	// Acepto ISO con Z/ms y el formato naive 'YYYY-MM-DD HH:MM:SS' (UTC),

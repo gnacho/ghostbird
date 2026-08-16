@@ -26,7 +26,7 @@ func newTestServer(t *testing.T, cfg *config.Config) (*httptest.Server, *store.S
 	if cfg == nil {
 		cfg = &config.Config{Addr: ":0", DBPath: "test.db", TrustProxy: true}
 	}
-	s := NewServer(cfg, st, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := NewServer(cfg, st, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
 	return srv, st
@@ -154,7 +154,7 @@ func TestPageHitValidaciones(t *testing.T) {
 	// Cabeceras ausentes: contra el handler directo (el transporte del client
 	// rellenaría User-Agent por defecto y falsearía el resultado).
 	handler := func(req *http.Request) int {
-		s := NewServer(&config.Config{TrustProxy: true}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		s := NewServer(&config.Config{TrustProxy: true}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, req)
 		return w.Code

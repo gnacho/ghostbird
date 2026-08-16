@@ -60,10 +60,19 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusBadRequest, "ningún evento válido: "+strings.Join(errores, "; "))
 		return
 	}
-	if _, err := s.st.InsertEvents(now, evs); err != nil {
+	inserted, err := s.st.InsertEvents(now, evs)
+	if err != nil {
 		s.log.Error("insertar batch /v0/events", "error", err, "eventos", len(evs))
+		if s.m != nil {
+			s.m.IngestErrors.Add(1)
+		}
 		jsonError(w, http.StatusInternalServerError, "no se pudo almacenar el batch")
 		return
+	}
+	if s.m != nil {
+		s.m.V0Events.Add(1)
+		s.m.Accepted.Add(inserted)
+		s.m.Dupes.Add(int64(len(evs)) - inserted)
 	}
 	// wait=true: respondemos tras persistir (nuestros inserts son síncronos).
 	writeJSON(w, http.StatusAccepted, map[string]any{"success": true, "accepted": len(evs)})
@@ -140,8 +149,20 @@ func (s *Server) eventoDesdeProcesado(line []byte, now time.Time) (store.Event, 
 		UtmCampaign:    e.UtmCampaign,
 		UtmTerm:        e.UtmTerm,
 		UtmContent:     e.UtmContent,
-		Raw:            string(line),
+		Raw:            rawCap(line),
 	}, nil
+}
+
+// rawCap acota la línea cruda que guardamos para trazabilidad: con caps de
+// campo, lo legítimo es pequeño; lo hostil se corta (era el "raw verbatim
+// de 4 MB" del backlog).
+const rawFieldCap = 16384
+
+func rawCap(b []byte) string {
+	if len(b) > rawFieldCap {
+		return string(b[:rawFieldCap])
+	}
+	return string(b)
 }
 
 // errBot marca eventos de bot descartados silenciosamente.

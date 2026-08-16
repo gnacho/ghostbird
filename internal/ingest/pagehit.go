@@ -40,6 +40,9 @@ func (s *Server) handlePageHit(w http.ResponseWriter, r *http.Request) {
 
 	// Bots: mismo 202 que un hit normal, sin almacenar (stealth, como el AS).
 	if EsBot(headerUA) {
+		if s.m != nil {
+			s.m.Bots.Add(1)
+		}
 		writeJSON(w, http.StatusAccepted, map[string]string{"message": "Page hit event received"})
 		return
 	}
@@ -69,8 +72,15 @@ func (s *Server) handlePageHit(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := s.st.InsertEvents(s.nowF(), []store.Event{ev}); err != nil {
 		s.log.Error("insertar page_hit", "error", err)
+		if s.m != nil {
+			s.m.IngestErrors.Add(1)
+		}
 		jsonError(w, http.StatusInternalServerError, "no se pudo almacenar el evento")
 		return
+	}
+	if s.m != nil {
+		s.m.PageHits.Add(1)
+		s.m.Accepted.Add(1)
 	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"message": "Page hit event received"})
 }

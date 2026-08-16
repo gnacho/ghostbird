@@ -125,17 +125,18 @@ func (e *Engine) postVisitorCounts(p Params) ([]row, error) {
 }
 
 // firstHitGroupBy: pipes de atributos de sesión (source/device/utm_*):
-// count() de sesiones agrupadas por el atributo del primer hit.
+// count() de sesiones agrupadas por el atributo del primer hit (tabla
+// sessions agregada: O(sesiones), no O(eventos)).
 // includeEmpty=true incluye ” (tráfico directo); los utm_* lo excluyen.
 func (e *Engine) firstHitGroupBy(p Params, col, _ string, includeEmpty bool) ([]row, error) {
 	cte, cteArgs := p.filteredSessionsSQL()
-	q := "WITH " + cte + ", fhagg AS (SELECT session_id, " + col + " AS v FROM (SELECT session_id, " + col + ", ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY ts, id) AS rn FROM events WHERE site_uuid = ?) WHERE rn = 1) SELECT fh.v AS v, COUNT(*) AS visits FROM fhagg fh INNER JOIN fs ON fs.session_id = fh.session_id"
+	q := "WITH " + cte + " SELECT sd." + col + " AS v, COUNT(*) AS visits FROM sessions sd INNER JOIN fs ON fs.session_id = sd.session_id WHERE sd.site_uuid = ?"
 	args := append([]any{}, cteArgs...)
 	args = append(args, p.SiteUUID)
 	if !includeEmpty {
-		q += " WHERE fh.v != ''"
+		q += " AND sd." + col + " != ''"
 	}
-	q += " GROUP BY fh.v ORDER BY visits DESC, fh.v ASC LIMIT ? OFFSET ?"
+	q += " GROUP BY sd." + col + " ORDER BY visits DESC, v ASC LIMIT ? OFFSET ?"
 	args = append(args, p.Limit, p.Skip)
 
 	rows, err := e.st.Query(q, args...)
@@ -277,7 +278,7 @@ func (e *Engine) kpis(p Params) ([]row, error) {
 	sessBuckets := make(map[string][]sessAgg) // bucket → sesiones
 
 	cte, cteArgs := p.filteredSessionsSQL()
-	q := "WITH " + cte + ", sm AS (SELECT session_id, MIN(ts) AS f, MAX(ts) AS l, COUNT(*) AS pv FROM events WHERE site_uuid = ? GROUP BY session_id) SELECT sm.session_id, sm.f, sm.l, sm.pv FROM sm INNER JOIN fs ON fs.session_id = sm.session_id"
+	q := "WITH " + cte + " SELECT sm.session_id, sm.first_ts, sm.last_ts, sm.pageviews FROM sessions sm INNER JOIN fs ON fs.session_id = sm.session_id WHERE sm.site_uuid = ?"
 	args := append([]any{}, cteArgs...)
 	args = append(args, p.SiteUUID)
 	rows, err := e.st.Query(q, args...)

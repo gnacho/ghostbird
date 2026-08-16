@@ -73,6 +73,49 @@ var migrations = []string{
 		PRIMARY KEY (day, site_uuid)
 	);
 	`,
+	// v2: heartbeat para el write-probe de healthz.
+	`
+	CREATE TABLE IF NOT EXISTS heartbeat (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		at INTEGER NOT NULL
+	);
+	`,
+	// v3: sesiones agregadas (equivalente de _mv_session_data de Tinybird):
+	// una fila por sesión, mantenida incrementalmente en InsertEvents. Los
+	// pipes (kpis, filtros de sesión, top sources/devices/utm) pasan de
+	// O(histórico de eventos) a O(sesiones). Backfill de events incluido.
+	`
+	CREATE TABLE IF NOT EXISTS sessions (
+		site_uuid TEXT NOT NULL,
+		session_id TEXT NOT NULL,
+		first_ts INTEGER NOT NULL,
+		last_ts INTEGER NOT NULL,
+		pageviews INTEGER NOT NULL DEFAULT 1,
+		source TEXT NOT NULL DEFAULT '',
+		device TEXT NOT NULL DEFAULT '',
+		utm_source TEXT NOT NULL DEFAULT '',
+		utm_medium TEXT NOT NULL DEFAULT '',
+		utm_campaign TEXT NOT NULL DEFAULT '',
+		utm_term TEXT NOT NULL DEFAULT '',
+		utm_content TEXT NOT NULL DEFAULT '',
+		PRIMARY KEY (site_uuid, session_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_sessions_site_first ON sessions(site_uuid, first_ts);
+	INSERT INTO sessions (site_uuid, session_id, first_ts, last_ts, pageviews,
+		source, device, utm_source, utm_medium, utm_campaign, utm_term, utm_content)
+	SELECT site_uuid, session_id, first_ts, last_ts, pv,
+		source, device, utm_source, utm_medium, utm_campaign, utm_term, utm_content
+	FROM (
+		SELECT site_uuid, session_id,
+			MIN(ts) OVER w AS first_ts, MAX(ts) OVER w AS last_ts,
+			COUNT(*) OVER w AS pv,
+			ROW_NUMBER() OVER (PARTITION BY site_uuid, session_id ORDER BY ts, id) AS rn,
+			source, device, utm_source, utm_medium, utm_campaign, utm_term, utm_content
+		FROM events
+		WINDOW w AS (PARTITION BY site_uuid, session_id)
+	) WHERE rn = 1
+	ON CONFLICT(site_uuid, session_id) DO NOTHING;
+	`,
 }
 
 // Open abre (o crea) la base de datos, aplica las pragmas de producción y
@@ -217,6 +260,32 @@ func (s *Store) InsertEvents(now time.Time, evs []Event) (n int64, err error) {
 	}
 	defer stmt.Close()
 
+	// Upsert de sesión agregada (mv_session_data). Solo se ejecuta para
+	// eventos REALMENTE nuevos (RowsAffected==1): el dedup no infla
+	// pageviews. Los atributos del primer hit se conservan: si llega un hit
+	// con ts anterior al first_ts actual (out-of-order), sus atributos
+	// reemplazan a los guardados (equivalente a argMin(x, timestamp)).
+	sessStmt, err := tx.Prepare(`
+		INSERT INTO sessions (site_uuid, session_id, first_ts, last_ts, pageviews,
+			source, device, utm_source, utm_medium, utm_campaign, utm_term, utm_content)
+		VALUES (?,?,?,?,1,?,?,?,?,?,?,?)
+		ON CONFLICT(site_uuid, session_id) DO UPDATE SET
+			first_ts = MIN(sessions.first_ts, excluded.first_ts),
+			last_ts = MAX(sessions.last_ts, excluded.last_ts),
+			pageviews = sessions.pageviews + 1,
+			source = CASE WHEN excluded.first_ts < sessions.first_ts THEN excluded.source ELSE sessions.source END,
+			device = CASE WHEN excluded.first_ts < sessions.first_ts THEN excluded.device ELSE sessions.device END,
+			utm_source = CASE WHEN excluded.first_ts < sessions.first_ts THEN excluded.utm_source ELSE sessions.utm_source END,
+			utm_medium = CASE WHEN excluded.first_ts < sessions.first_ts THEN excluded.utm_medium ELSE sessions.utm_medium END,
+			utm_campaign = CASE WHEN excluded.first_ts < sessions.first_ts THEN excluded.utm_campaign ELSE sessions.utm_campaign END,
+			utm_term = CASE WHEN excluded.first_ts < sessions.first_ts THEN excluded.utm_term ELSE sessions.utm_term END,
+			utm_content = CASE WHEN excluded.first_ts < sessions.first_ts THEN excluded.utm_content ELSE sessions.utm_content END
+	`)
+	if err != nil {
+		return 0, err
+	}
+	defer sessStmt.Close()
+
 	var inserted int64
 	insertedAt := now.Unix()
 	defer func() {
@@ -236,8 +305,15 @@ func (s *Store) InsertEvents(now time.Time, evs []Event) (n int64, err error) {
 		if err != nil {
 			return 0, err
 		}
-		if n, err := res.RowsAffected(); err == nil {
-			inserted += n
+		if n, err := res.RowsAffected(); err == nil && n == 1 {
+			inserted++
+			if _, err := sessStmt.Exec(
+				e.SiteUUID, e.SessionID, e.Ts, e.Ts,
+				e.Source, e.Device,
+				e.UtmSource, e.UtmMedium, e.UtmCampaign, e.UtmTerm, e.UtmContent,
+			); err != nil {
+				return 0, err
+			}
 		}
 	}
 	return inserted, tx.Commit()
@@ -286,12 +362,20 @@ func (s *Store) CountEvents() (int64, error) {
 	return n, err
 }
 
-// DeleteEventsBefore purga eventos anteriores al epoch dado (retención).
-// Devuelve filas borradas. No toca las sales (rota solas con su purge).
+// DeleteEventsBefore purga eventos anteriores al epoch dado (retención) y
+// las sesiones cuyo último hit también quedó fuera (las que cruzan el
+// cutoff conservan su agregado: sus pageviews pueden sobrecontar respecto
+// a los eventos supervivientes, mismo comportamiento que las MV de
+// Tinybird). Devuelve filas de eventos borradas.
 func (s *Store) DeleteEventsBefore(cutoff int64) (int64, error) {
 	res, err := s.db.Exec(`DELETE FROM events WHERE ts < ?`, cutoff)
 	if err != nil {
 		return 0, err
+	}
+	if _, err := s.db.Exec(`DELETE FROM sessions WHERE last_ts < ?`, cutoff); err != nil {
+		// No fatal: la purga de sesiones es optimización de tamaño; los
+		// pipes filtran por la ventana de eventos de todas formas.
+		_ = err
 	}
 	return res.RowsAffected()
 }

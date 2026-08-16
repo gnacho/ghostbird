@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gnacho/ghostbird/internal/config"
+	"github.com/gnacho/ghostbird/internal/metrics"
 	"github.com/gnacho/ghostbird/internal/store"
 )
 
@@ -21,12 +22,13 @@ type Server struct {
 	cfg  *config.Config
 	st   *store.Store
 	log  *slog.Logger
+	m    *metrics.Metrics
 	nowF func() time.Time // inyectable para tests
 }
 
-// NewServer construye el servidor de ingesta.
-func NewServer(cfg *config.Config, st *store.Store, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, st: st, log: log, nowF: time.Now}
+// NewServer construye el servidor de ingesta (m puede ser nil: no-op).
+func NewServer(cfg *config.Config, st *store.Store, log *slog.Logger, m *metrics.Metrics) *Server {
+	return &Server{cfg: cfg, st: st, log: log, m: m, nowF: time.Now}
 }
 
 // Handler devuelve el http.Handler con CORS y todas las rutas.

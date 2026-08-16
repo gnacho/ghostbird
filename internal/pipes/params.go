@@ -267,18 +267,17 @@ func (p *Params) filteredSessionsSQL() (string, []any) {
 		return b.String() + "), fs AS (SELECT session_id FROM sfha)", args
 	}
 
-	// Stage 2: atributos del primer hit de cada sesión.
+	// Stage 2: atributos de sesión desde la tabla agregada (first_ts +
+	// source/device/utm_* del primer hit, mantenidos en InsertEvents).
 	sfrom, sto := p.sessionWindow()
-	b.WriteString("), firsthit AS (SELECT session_id, ts AS first_ts, source, device, utm_source, utm_medium, utm_campaign, utm_term, utm_content FROM (SELECT session_id, ts, source, device, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY ts, id) AS rn FROM events WHERE site_uuid = ?) WHERE rn = 1)")
-	args = append(args, p.SiteUUID)
-	b.WriteString(", fs AS (SELECT fh.session_id FROM firsthit fh INNER JOIN sfha ON sfha.session_id = fh.session_id WHERE fh.first_ts >= ? AND fh.first_ts < ?")
-	args = append(args, sfrom, sto)
+	b.WriteString("), fs AS (SELECT sd.session_id FROM sessions sd INNER JOIN sfha ON sfha.session_id = sd.session_id WHERE sd.site_uuid = ? AND sd.first_ts >= ? AND sd.first_ts < ?")
+	args = append(args, p.SiteUUID, sfrom, sto)
 	if p.Device != "" {
-		b.WriteString(" AND fh.device = ?")
+		b.WriteString(" AND sd.device = ?")
 		args = append(args, p.Device)
 	}
 	if p.SourceSet {
-		b.WriteString(" AND fh.source = ?")
+		b.WriteString(" AND sd.source = ?")
 		args = append(args, p.Source) // '' incluido: filtro Direct
 	}
 	for _, u := range []struct{ col, val string }{
@@ -286,7 +285,7 @@ func (p *Params) filteredSessionsSQL() (string, []any) {
 		{"utm_term", p.UtmTerm}, {"utm_content", p.UtmContent},
 	} {
 		if u.val != "" {
-			b.WriteString(" AND fh." + u.col + " = ?")
+			b.WriteString(" AND sd." + u.col + " = ?")
 			args = append(args, u.val)
 		}
 	}

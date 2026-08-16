@@ -26,7 +26,7 @@ func newPipesServer(t *testing.T, cfg *config.Config) (*httptest.Server, *store.
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	h := NewHandler(cfg, st, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := NewHandler(cfg, st, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv, st

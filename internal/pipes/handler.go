@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gnacho/ghostbird/internal/config"
+	"github.com/gnacho/ghostbird/internal/metrics"
 	"github.com/gnacho/ghostbird/internal/store"
 )
 
@@ -19,13 +20,14 @@ type Handler struct {
 	cfg  *config.Config
 	eng  *Engine
 	log  *slog.Logger
+	m    *metrics.Metrics
 	nowF func() time.Time
 }
 
-// NewHandler construye el handler de pipes.
-func NewHandler(cfg *config.Config, st *store.Store, log *slog.Logger) *Handler {
+// NewHandler construye el handler de pipes (m puede ser nil: no-op).
+func NewHandler(cfg *config.Config, st *store.Store, log *slog.Logger, m *metrics.Metrics) *Handler {
 	nowF := time.Now
-	return &Handler{cfg: cfg, eng: NewEngine(st, nowF), log: log, nowF: nowF}
+	return &Handler{cfg: cfg, eng: NewEngine(st, nowF), log: log, m: m, nowF: nowF}
 }
 
 // ServeHTTP enruta /v0/pipes/{name}.json. El hook useQuery de
@@ -60,8 +62,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 	data, err := h.eng.Run(pipe, p)
-	if d := time.Since(start); d > 500*time.Millisecond {
+	d := time.Since(start)
+	if d > 500*time.Millisecond {
 		h.log.Warn("pipe lento", "pipe", pipe, "duracion_ms", d.Milliseconds(), "site", p.SiteUUID)
+	}
+	if h.m != nil {
+		if st := h.m.Pipe(pipe); st != nil {
+			st.Reqs.Add(1)
+			st.DurMs.Add(d.Milliseconds())
+			if d > 500*time.Millisecond {
+				st.Slow.Add(1)
+			}
+		}
 	}
 	if err != nil {
 		h.log.Error("pipe error", "pipe", pipe, "error", err)
