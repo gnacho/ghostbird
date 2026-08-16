@@ -53,10 +53,50 @@ lo auto-firma Ghost con un secreto compartido, y la entrega es at-least-once (de
 |---|---|---|
 | 0. Reconocimiento | ✅ Completada | Contrato documentado (docs/). |
 | 1. MVP ingesta | ✅ Completada | Single binary: collector `POST /api/v1/page_hit` (bots, UA, session_id) + `POST /v0/events` (compat TrafficAnalytics) + SQLite + CORS + `/healthz`. |
-| 2. Pipes lectura | ⬜ | 13 pipes v1 + JWT HS256 scoped + `filtered_sessions` en SQLite + agregados y job de refresco. |
-| 3. Integración Ghost | ⬜ | Prueba end-to-end contra Ghost 6.x real (tracker + dashboard Admin). Ojo: SSRF guard de producción con IPs privadas. |
-| 4. Robustez | ⬜ | Retención configurable, rate limiting, backups SQLite, métricas, tests >70%. |
+| 2. Pipes lectura | ✅ Completada | 13 pipes v1 + JWT HS256 scoped + `filtered_sessions` en SQLite. **Tests de fidelidad: la suite YAML oficial de Tinybird pasa entera contra el mismo fixture.** |
+| 3. Integración Ghost | ✅ Completada | Verificado end-to-end con Ghost 6.57.1 real: tracker en el HTML, page_hit del navegador real almacenado, JWT firmado por Ghost, dashboard Admin pintando "Unique visitors" y "online" desde GhostBird. |
+| 4. Robustez | 🔶 Esencial hecha | Job nocturno: purge de sales, retención configurable (`-retention-days`), backup diario verificado con VACUUM INTO + rotación 14 días (`-backup-dir`), `PRAGMA optimize`+checkpoint. Pendiente: rate limiting, métricas Prometheus, cobertura >70%. |
 | 5. Comunidad | ⬜ | README EN/ES, instalador one-liner, CI, licencia (a decidir), anuncio. |
+
+## Deploy con Ghost real (verificado con Ghost 6.57.1)
+
+GhostBird necesita ser alcanzable por (a) los navegadores de los visitantes
+(tracker) y (b) el navegador del Admin (pipes) → sírvelo bajo el mismo dominio
+que tu Ghost con nginx:
+
+```nginx
+location /ghb/ {
+    proxy_pass http://127.0.0.1:18181/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;  # imprescindible: session_id firma la IP
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+}
+```
+
+En `config.production.json` (o el env de tu Ghost):
+
+```json
+{
+  "tinybird": {
+    "workspaceId": "ghostbird-local",
+    "adminToken": "<EL MISMO secreto que pasaste a GhostBird con -admin-token>",
+    "tracker": { "endpoint": "https://TU-SITIO/ghb/api/v1/page_hit", "datasource": "analytics_events" },
+    "stats": {
+      "endpoint": "http://127.0.0.1:18181",
+      "endpointBrowser": "https://TU-SITIO/ghb"
+    }
+  }
+}
+```
+
+Notas verificadas:
+- `stats.endpoint` (server-side) puede ser `127.0.0.1` si Ghost y GhostBird
+  comparten host. OJO: el guard SSRF de Ghost bloquea IPs privadas en
+  `env: production`; con `env: development` funciona directo (así está
+  probado). En producción real usa un hostname que resuelva, o el mismo
+  dominio público (`/ghb/`).
+- Reinicia Ghost tras cambiar la config (cachea el tracker en memoria).
+- El setting BD `web_analytics` (default on) es el interruptor del dashboard.
 
 ## Ejecución (Fase 1)
 

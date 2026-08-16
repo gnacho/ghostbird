@@ -275,3 +275,46 @@ func (s *Store) CountEvents() (int64, error) {
 	err := s.db.QueryRow(`SELECT count(*) FROM events`).Scan(&n)
 	return n, err
 }
+
+// DeleteEventsBefore purga eventos anteriores al epoch dado (retención).
+// Devuelve filas borradas. No toca las sales (rota solas con su purge).
+func (s *Store) DeleteEventsBefore(cutoff int64) (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM events WHERE ts < ?`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// Backup crea una copia consistente de la BD con VACUUM INTO (skill
+// sqlite-ops: respeta WAL, no necesita bloquear escritores) y verifica su
+// integridad antes de devolver la ruta.
+func (s *Store) Backup(destPath string) error {
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return err
+	}
+	if _, err := os.Stat(destPath); err == nil {
+		return fmt.Errorf("el backup ya existe: %s", destPath)
+	}
+	if _, err := s.db.Exec(`VACUUM INTO ?`, destPath); err != nil {
+		return fmt.Errorf("vacuum into: %w", err)
+	}
+	// Verificación de integridad del fichero resultante.
+	d, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)", destPath))
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	var ok string
+	if err := d.QueryRow(`PRAGMA quick_check`).Scan(&ok); err != nil || ok != "ok" {
+		return fmt.Errorf("backup corrupto (quick_check=%q err=%v)", ok, err)
+	}
+	return nil
+}
+
+// Optimize corre la rutina de mantenimiento nocturno (PRAGMA optimize +
+// checkpoint). Barato y recomendado por SQLite tras borrados grandes.
+func (s *Store) Optimize() {
+	_, _ = s.db.Exec(`PRAGMA optimize`)
+	_, _ = s.db.Exec(`PRAGMA wal_checkpoint(PASSIVE)`)
+}

@@ -80,3 +80,40 @@ func TestMigracionesIdempotentes(t *testing.T) {
 		t.Errorf("re-migrar debe ser no-op: %v", err)
 	}
 }
+
+func TestRetencionYBackup(t *testing.T) {
+	s := openTest(t)
+	now := time.Now()
+	old := ev("old")
+	old.Ts = now.AddDate(0, 0, -30).Unix()
+	reciente := ev("nuevo")
+	reciente.Ts = now.Unix()
+	if _, err := s.InsertEvents(now, []Event{old, reciente}); err != nil {
+		t.Fatal(err)
+	}
+	n, err := s.DeleteEventsBefore(now.AddDate(0, 0, -7).Unix())
+	if err != nil || n != 1 {
+		t.Fatalf("retención: n=%d err=%v", n, err)
+	}
+	if c, _ := s.CountEvents(); c != 1 {
+		t.Errorf("count tras retención = %d", c)
+	}
+
+	dir := t.TempDir()
+	bak := filepath.Join(dir, "backup.db")
+	if err := s.Backup(bak); err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+	if err := s.Backup(bak); err == nil {
+		t.Error("backup sobre existente debe fallar")
+	}
+	// El backup contiene el evento restante.
+	b, err := Open(bak)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	if c, _ := b.CountEvents(); c != 1 {
+		t.Errorf("backup events = %d", c)
+	}
+}
