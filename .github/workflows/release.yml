@@ -1,0 +1,95 @@
+name: release
+
+# Release por tag v*: binario Go estático (CGO_ENABLED=0) para linux amd64 y
+# arm64 + checksums.txt único. install.sh espera EXACTAMENTE estos nombres:
+#   ghostbird-linux-<goarch>  (binario suelto, no tarball)
+#   checksums.txt             (formato sha256sum: "<hash>  <fichero>")
+#
+# La carrera de checksums.txt se resuelve consolidando en un job final: cada
+# build sube su binario como artifact y 'consolidate' genera el checksums.txt
+# único y publica todo (un solo publisher).
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: # sin tag = compila y sube como artifact de prueba
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+            runs-on: ubuntu-latest
+          - goarch: arm64
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Tests Go
+        run: go test ./...
+
+      - name: Build binario estático
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          VERSION="${REF#v}"
+          [ "${{ github.ref_type }}" = "tag" ] || VERSION="0.0.0-SNAPSHOT-${GITHUB_SHA::7}"
+          CGO_ENABLED=0 go build -trimpath \
+            -ldflags="-s -w -X main.version=${VERSION}" \
+            -o "ghostbird-linux-${{ matrix.goarch }}" \
+            ./cmd/ghostbird
+          ls -la "ghostbird-linux-${{ matrix.goarch }}"
+
+      - name: Sube binario como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghostbird-bin-linux-${{ matrix.goarch }}
+          path: ghostbird-linux-${{ matrix.goarch }}
+          if-no-files-found: error
+
+  consolidate:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descarga binarios de ambos archs
+        uses: actions/download-artifact@v4
+        with:
+          path: bin
+          pattern: ghostbird-bin-linux-*
+          merge-multiple: true
+
+      - name: Genera checksums.txt único y lista
+        run: |
+          # Entradas sin prefijo de directorio: install.sh ancla el grep al
+          # nombre exacto del asset (" ghostbird-linux-<arch>$").
+          (cd bin && sha256sum ghostbird-linux-*) > checksums.txt
+          cat checksums.txt
+          ls -la bin/
+
+      - name: Publica en la release (solo tags)
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/ghostbird-linux-*
+            checksums.txt
+
+      - name: Sube artifact de prueba (solo workflow_dispatch)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghostbird-snapshot
+          path: |
+            bin/ghostbird-linux-*
+            checksums.txt
+          retention-days: 7
