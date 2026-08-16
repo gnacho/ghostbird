@@ -52,11 +52,46 @@ lo auto-firma Ghost con un secreto compartido, y la entrega es at-least-once (de
 | Fase | Estado | Contenido |
 |---|---|---|
 | 0. Reconocimiento | ✅ Completada | Contrato documentado (docs/). |
-| 1. MVP ingesta | ⬜ | Single binary: collector `POST /api/v1/page_hit` (bots, UA, session_id) + `POST /v0/events` (compat TrafficAnalytics) + SQLite + CORS + `/healthz`. |
+| 1. MVP ingesta | ✅ Completada | Single binary: collector `POST /api/v1/page_hit` (bots, UA, session_id) + `POST /v0/events` (compat TrafficAnalytics) + SQLite + CORS + `/healthz`. |
 | 2. Pipes lectura | ⬜ | 13 pipes v1 + JWT HS256 scoped + `filtered_sessions` en SQLite + agregados y job de refresco. |
 | 3. Integración Ghost | ⬜ | Prueba end-to-end contra Ghost 6.x real (tracker + dashboard Admin). Ojo: SSRF guard de producción con IPs privadas. |
 | 4. Robustez | ⬜ | Retención configurable, rate limiting, backups SQLite, métricas, tests >70%. |
 | 5. Comunidad | ⬜ | README EN/ES, instalador one-liner, CI, licencia (a decidir), anuncio. |
+
+## Ejecución (Fase 1)
+
+```sh
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ghostbird ./cmd/ghostbird
+./ghostbird -addr :8080 -db data/ghostbird.db
+```
+
+Flags (equiv. env `GHOSTBIRD_ADDR`, `GHOSTBIRD_DB`, `GHOSTBIRD_INGEST_TOKEN`,
+`GHOSTBIRD_TRUST_PROXY`, `GHOSTBIRD_LOG_LEVEL`): `-ingest-token` activa la auth
+de `/v0/events` (Bearer o `?token=`); sin él queda abierta como el collector
+del AS. `-trust-proxy` (default true) toma la primera IP de X-Forwarded-For.
+
+Endpoints:
+
+| Ruta | Qué hace |
+|---|---|
+| `POST /api/v1/page_hit?name=analytics_events` | Collector: valida, filtra bots (202 stealth), enriquece (UA→os/browser/device, referrer parseado con port de @tryghost/referrer-parser, source normalizado con el mapa mv_hits, `session_id=sha256(salt:site:ip:ua)` con sal diaria por sitio) y almacena en SQLite. Responde `202 {"message":"Page hit event received"}`. |
+| `POST /v0/events?name=analytics_events[&wait=true]` | Events API (compat TrafficAnalytics como collector): NDJSON u objeto único, Bearer o `?token=`; dedup por `(site_uuid, event_id)` (at-least-once); `device=bot` se descarta. Responde `202 {"success":true}`. |
+| `GET /healthz` | `{"status":"ok","events":N}` (503 si la BD no responde). |
+
+CORS en todo el servicio: `origin *`, métodos GET/POST/PUT/DELETE/OPTIONS,
+headers `Origin, X-Requested-With, Content-Type, Accept, Authorization,
+x-site-uuid` (réplica de TrafficAnalytics; el navegador del visitante Y el del
+Admin llaman cross-origin).
+
+Eventos en tabla `events` aplanada (una fila = un page_hit, campos
+normalizados a `""`, `"undefined"`→`""` en UUIDs, `source` pre-normalizado,
+`raw` JSON canónico) + tabla `salts` (sal diaria por sitio, purge a 7 días).
+Migraciones con `PRAGMA user_version`. Single-writer (WAL, busy_timeout,
+txlock IMMEDIATE, MaxOpenConns 1).
+
+Tests: `go test -race ./...` (parsing tolerante con fixtures del e2e del AS,
+bots, derivación UA, firma, referrer port, normalización source, dedup,
+endpoints e2e con SQLite temporal).
 
 ## Decisiones registradas
 
@@ -66,3 +101,10 @@ lo auto-firma Ghost con un secreto compartido, y la entrega es at-least-once (de
 - **Dedup por `event_id`** (UNIQUE + INSERT OR IGNORE) por semántica at-least-once.
 - **SQLite single-writer** con las pragmas del stack (WAL, busy_timeout, BEGIN IMMEDIATE).
 - Sin Docker en el flujo de desarrollo del autor (pruebas en LXC si hace falta).
+- **Referrer parsing**: port fiel de `@tryghost/referrer-parser` 0.1.21 (MIT) con su mapa de
+  2.381 referers embebido (`internal/ingest/data/referrers.json` + `referrers.LICENSE`),
+  más la normalización de `source` del mapa de `mv_hits.pipe`. La autoreferencia nunca se
+  trata como interna (el AS instancia el parser sin siteUrl).
+- **os/browser se recomputan del user-agent** con las regexes literales de `mv_hits`
+  (incluye su quirk: iPhone→macos, Android→linux porque "mac"/"linux" van antes en el CASE);
+  `device` sí usa detección factual móvil-primero (es lo que el dashboard consume).
