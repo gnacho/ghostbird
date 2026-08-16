@@ -146,18 +146,23 @@ Endpoints:
 |---|---|
 | `POST /api/v1/page_hit?name=analytics_events` | Collector: valida, filtra bots (202 stealth), enriquece (UA→os/browser/device, referrer parseado con port de @tryghost/referrer-parser, source normalizado con el mapa mv_hits, `session_id=sha256(salt:site:ip:ua)` con sal diaria por sitio) y almacena en SQLite. Responde `202 {"message":"Page hit event received"}`. |
 | `POST /v0/events?name=analytics_events[&wait=true]` | Events API (compat TrafficAnalytics como collector): NDJSON u objeto único, Bearer o `?token=`; dedup por `(site_uuid, event_id)` (at-least-once); `device=bot` se descarta. Responde `202 {"success":true}`. |
-| `GET /healthz` | `{"status":"ok","events":N}` (503 si la BD no responde). |
+| `GET /healthz` | `{"status":"ok","events":N,"last_write_ok_sec":S}` (503 si la BD no responde o no admite writes >26 h: disco lleno/BD rota). |
+| `GET /metrics` | Métricas en formato texto Prometheus (page_hits, bots, dupes, errores de ingesta, latencia/slow-count por pipe, tamaños BD/WAL). Sin dependencias; apunta un scraper cuando tengas uno. |
+
+Eventos en tabla `events` aplanada (una fila = un page_hit, campos
+normalizados a `""`, caps de 2 KB por campo y 16 KB del raw, `"undefined"`→`""`
+en UUIDs, `source` pre-normalizado) + tabla `salts` (sal diaria por sitio,
+purge a 7 días) + **tabla `sessions` agregada** (migración v3 con backfill:
+una fila por sesión con pageviews/first/last_ts y los atributos del primer
+hit, mantenida incrementalmente en la ingesta; los pipes consultan sesiones,
+no el histórico de eventos — el equivalente de `_mv_session_data` de
+Tinybird). Migraciones con `PRAGMA user_version`. Single-writer (WAL,
+busy_timeout, txlock IMMEDIATE, MaxOpenConns 1).
 
 CORS en todo el servicio: `origin *`, métodos GET/POST/PUT/DELETE/OPTIONS,
 headers `Origin, X-Requested-With, Content-Type, Accept, Authorization,
-x-site-uuid` (réplica de TrafficAnalytics; el navegador del visitante Y el del
+x-site-uuid` (réplica de TrafficAnalytics; el navegador del visitante Y el
 Admin llaman cross-origin).
-
-Eventos en tabla `events` aplanada (una fila = un page_hit, campos
-normalizados a `""`, `"undefined"`→`""` en UUIDs, `source` pre-normalizado,
-`raw` JSON canónico) + tabla `salts` (sal diaria por sitio, purge a 7 días).
-Migraciones con `PRAGMA user_version`. Single-writer (WAL, busy_timeout,
-txlock IMMEDIATE, MaxOpenConns 1).
 
 Tests: `go test -race ./...` (parsing tolerante con fixtures del e2e del AS,
 bots, derivación UA, firma, referrer port, normalización source, dedup,
