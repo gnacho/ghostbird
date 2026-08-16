@@ -1,0 +1,18 @@
+# Datos
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# Binarios
+ghostbird
+dist/
+
+# Entorno
+.env
+*.local.json
+
+# IDE/OS
+.idea/
+.vscode/
+.DS_Store
