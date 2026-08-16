@@ -57,12 +57,38 @@ func NormalizarSource(referrer string) string {
 	return referrer
 }
 
-// domainWithoutWWW replica domainWithoutWWW de ClickHouse para el caso que
-// nos ocupa (entradas que son hostnames o nombres de marca): quita el
-// prefijo www. de un valor con punto; un valor sin punto no es dominio → "".
+// domainWithoutWWW replica domainWithoutWWW de ClickHouse para nuestros
+// casos: acepta URLs completas ("https://www.bing.com/x"), host+path
+// ("bing.com/images/search") y hostnames solos; devuelve el dominio sin
+// prefijo www. Un valor sin punto (nombres canónicos como "Bing") no es
+// dominio → "" (el CASE de mv_hits cae al ELSE: el valor tal cual).
 func domainWithoutWWW(s string) string {
+	if s == "" {
+		return ""
+	}
+	// Quitar esquema si es URL.
+	if i := strings.Index(s, "://"); i >= 0 {
+		s = s[i+3:]
+	} else if strings.HasPrefix(s, "//") {
+		s = s[2:]
+	}
+	// Quedarse con el host: hasta /, ? o #.
+	if i := strings.IndexAny(s, "/?#"); i >= 0 {
+		s = s[:i]
+	}
+	// Puerto fuera.
+	if i := strings.LastIndex(s, ":"); i >= 0 && !strings.Contains(s[i:], "]") {
+		s = s[:i]
+	}
+	s = strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(strings.ToLower(s), "www."), "."))
 	if !strings.Contains(s, ".") {
 		return ""
 	}
-	return strings.TrimPrefix(s, "www.")
+	for _, c := range s {
+		valid := (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_'
+		if !valid {
+			return ""
+		}
+	}
+	return s
 }

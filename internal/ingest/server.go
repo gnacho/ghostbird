@@ -54,11 +54,12 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, h)
 }
 
-// cors replica la política CORS de TrafficAnalytics (src/plugins/cors.ts):
+// CORS replica la política CORS de TrafficAnalytics (src/plugins/cors.ts):
 // origin *, métodos GET/POST/PUT/DELETE/OPTIONS y las mismas cabeceras
-// permitidas (x-site-uuid incluida). El navegador del visitante Y el del
-// Admin llaman cross-origin a este servicio.
-func cors(next http.Handler) http.Handler {
+// permitadas (x-site-uuid incluida). El navegador del visitante Y el del
+// Admin llaman cross-origin a este servicio. Exportada: main la aplica al
+// árbol completo (pipes incluidos).
+func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -70,6 +71,9 @@ func cors(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// cors alias interno.
+var cors = CORS
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")

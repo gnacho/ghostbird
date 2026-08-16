@@ -48,9 +48,11 @@ type Payload struct {
 	Meta           *PayloadMeta    `json:"meta"`
 }
 
-// PayloadMeta es el bloque meta (received_timestamp del cliente).
+// PayloadMeta es el bloque meta (received_timestamp del cliente; el collector
+// de producción añade referrerSource crudo cuando no hay parsedReferrer).
 type PayloadMeta struct {
 	ReceivedTimestamp *string `json:"received_timestamp"`
+	ReferrerSource    *string `json:"referrerSource"`
 }
 
 // ParsedReferrer es el referrer parseado por el navegador.
@@ -231,9 +233,21 @@ func ProcesadoAEntrante(raw []byte) (EventoEntrante, string, error) {
 		return EventoEntrante{}, "", err
 	}
 	// El timestamp raíz (hora de ingesta del AS) es el canónico del evento.
+	// Acepto ISO con Z/ms y el formato naive 'YYYY-MM-DD HH:MM:SS' (UTC),
+	// que es como el fixture de Tinybird lo trae.
 	if ts, err := time.Parse(time.RFC3339Nano, doc.Timestamp); err == nil {
 		e.ReceivedTsStr = nil
 		e.RootTs = ts
+	} else if ts, err := time.Parse("2006-01-02 15:04:05", doc.Timestamp); err == nil {
+		e.ReceivedTsStr = nil
+		e.RootTs = ts.UTC()
+	}
+	// Fallback de referrer como mv_hits: payload.referrerSource vacío →
+	// meta.referrerSource (el collector de producción lo pone ahí).
+	if e.ReferrerSrcSrv == nil || str(e.ReferrerSrcSrv) == "" {
+		if doc.Payload.Meta != nil && doc.Payload.Meta.ReferrerSource != nil {
+			e.ReferrerSrcSrv = doc.Payload.Meta.ReferrerSource
+		}
 	}
 	return e, doc.SessionID, nil
 }

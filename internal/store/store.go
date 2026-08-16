@@ -137,6 +137,11 @@ func (s *Store) Query(query string, args ...any) (*sql.Rows, error) {
 	return s.db.Query(query, args...)
 }
 
+// QueryRow ejecuta una consulta de una fila (pipes).
+func (s *Store) QueryRow(query string, args ...any) *sql.Row {
+	return s.db.QueryRow(query, args...)
+}
+
 // Event es un page_hit listo para persistir. Los campos de texto usan ""
 // como valor vacío (nunca null): las queries de la fase 2 dependen de eso.
 type Event struct {
