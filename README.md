@@ -1,185 +1,235 @@
 # GhostBird
 
-Drop-in replacement **self-hosted de Tinybird** para las estadísticas nativas de Ghost 6.x.
-Filosofía GoatCounter: **un binario Go + un fichero SQLite + cero configuración obligatoria**.
-Ghost sigue creyendo que habla con Tinybird; solo cambias la URL de conexión.
+A free, self-hosted drop-in replacement for the Tinybird backend behind
+Ghost's native analytics.
+
+One Go binary. One SQLite file. Your analytics never leave your server.
+
+**Status**: working end to end against Ghost 6.x (tested with Ghost
+6.57.1). See [Verified](#verified-against-the-real-thing). Licensed
+AGPL-3.0, forever.
+
+---
+
+## The gap this fills
+
+Ghost 6 moved its native analytics to a hosted Tinybird workspace. If you
+self-host Ghost, that decision landed on you in an awkward way:
+
+- The analytics tab in your admin panel talks to Tinybird's cloud API.
+  Tinybird is a commercial, proprietary service.
+- Without it, the dashboard shows nothing. The settings page calls it
+  "not configured".
+- If you point it at Tinybird, every pageview your visitors generate is
+  shipped to a third-party cloud, signed with a token you do not rotate.
+
+So the most privacy-conscious publishing platform on the web ended up
+with an analytics pipeline that self-hosters either break or surrender.
+The Ghost side is open source. The data side is not. That asymmetry is
+the gap.
+
+GhostBird fills it. It speaks the exact protocol Ghost already speaks:
+the events API the tracker posts to, the query API the dashboard reads
+from, the JWT authentication Ghost signs on its own. Ghost does not know
+anything changed. You change two URLs in a config file and the dashboard
+you already have keeps working, fed by a process on your own machine.
+
+## The pledge
+
+- **AGPL-3.0, forever.** Not "open core". No feature is ever held back
+  for a paid tier, because there is no paid tier and there will not be
+  one.
+- **Community driven.** Issues, patches and roadmap decisions happen in
+  the open. The project is useful to its author's production sites on
+  day one, so it is maintained, not abandoned.
+- **Your data stays put.** No telemetry, no phone-home, no "anonymous
+  usage statistics". The binary makes zero outbound connections except
+  the ones you configure (and by default, none).
+- **Honest metrics.** The counting rules are not invented here: they are
+  the same rules the original service uses, verified by running the
+  original provider's own test suite (see below).
+
+## What it is, what it is not
+
+**It is** a backend. A small server that ingests pageviews and answers
+the queries of the Ghost admin dashboard you already have.
+
+**It is not** another analytics panel. If you want a standalone
+dashboard with its own charts and UI, use Umami, Plausible or
+GoatCounter (all excellent, two of them also AGPL). Those tools answer
+"what happened on my site" with a new interface to learn. GhostBird
+answers a different question: "how do I keep the analytics tab of my
+Ghost install working without a cloud vendor". If you run both, they do
+not compete; they cover different needs. GhostBird additionally counts
+things the generic tools do not model: member status (free, paid,
+comped, gift), per-post attribution and gift-link usage.
+
+## How it works
 
 ```
-┌──────────────┐  1. page_hit   ┌────────────────────────────┐        ┌──────────────────┐
-│ Visitante    │───────────────►│  GhostBird (Go, 1 binario) │───────►│ SQLite (default) │
-│ (ghost-stats │  CORS + 202    │  · collector /api/v1/page │        │ PostgreSQL (opt) │
-│  .min.js)    │                │  · ingesta /v0/events      │        └──────────────────┘
-└──────────────┘                │  · pipes /v0/pipes/*.json │                 ▲
-┌──────────────┐  2. pipes JWT  │  · JWT HS256 scoped        │        ┌──────────────────┐
-│ Ghost server │───────────────►│  · tablas agregadas + job  │        │ Tablas agregadas │
-└──────────────┘                └────────────────────────────┘        │ (sesiones, daily)│
-┌──────────────┐  3. pipes JWT        ▲                               └──────────────────┘
-│ Admin (React │──────────────────────┘  (el navegador del Admin consulta DIRECTO,
-│  navegador)  │                          con el JWT que le sirve Ghost)
-└──────────────┘
+visitor's browser      GhostBird (1 binary)              your server
+─────────────────      ─────────────────────              ───────────
+ghost-stats.min.js ──► collector  POST /api/v1/page_hit
+                       bots filtered, sessions signed,
+                       referrers parsed  ──► SQLite (WAL)
+                                   │
+Ghost admin panel  ──► pipes  GET/POST /v0/pipes/*.json
+(browser, JWT that     JWT HS256 verified, queries served
+ Ghost signs itself)   from an aggregated sessions table
+
+Ghost server        ──► same pipes, server-side (top content,
+                          post visitor counts)
 ```
 
-## Stack
+Ghost signs its own JWTs with a shared secret you set on both sides
+(`adminToken`). The token's scopes pin each query to your site's UUID,
+so one GhostBird instance can serve several Ghost sites with clean
+isolation.
 
-| Capa | Elección | Por qué |
-|---|---|---|
-| Lenguaje | Go | Binario estático único (~10-15 MB), sin runtime. Precedente: GoatCounter. |
-| DB default | SQLite (WAL) | Cero config, un fichero. Reglas del stack: single-writer + pragmas de producción. |
-| DB opcional | PostgreSQL | Sitios con >100K pageviews/mes; se comparte instancia con Ghost. |
-| Agregaciones | Tablas agregadas + job periódico | Sesiones (primer hit) y KPIs pre-computados; en lugar de ClickHouse. |
-| Auth queries | JWT HS256 (scopes + fixed_params.site_uuid) + tokens estáticos | Compatible con el token que Ghost auto-firma. |
-| Deploy | Binario + systemd; sin Docker necesario | Igual que el resto de apps self-hosted del autor. |
+## Technical brief
 
-## Contrato (Fase 0 — COMPLETADA)
+- **Single static binary**, about 11 MB, CGO-free. Cross-compiles to
+  amd64 and arm64. RAM footprint measured under 10 MB in production.
+- **SQLite** as the only required state, in WAL mode with a single
+  writer connection. A `sessions` aggregate table (the equivalent of the
+  original's materialized view) is maintained incrementally on ingest,
+  so dashboard queries stay fast no matter how old your data is.
+  PostgreSQL is a possible future path, not a present need.
+- **Contract faithful, not approximate.** The 13 query endpoints
+  reimplement the exact semantics of the original pipes, including the
+  two-stage session filtering, the daily and hourly KPI series with
+  zero-filled gaps, member status expansion, and timezone handling.
+  The upstream provider's official YAML test suite (shipped under
+  license in `internal/pipes/testdata/`) runs green in this repo against
+  the same fixture data.
+- **Integrated collector.** The piece that receives hits from visitors'
+  browsers is inside the same binary: bot filtering, user-agent
+  parsing, referrer classification (a port of the original 2,381-domain
+  reference table), and per-day, per-site session hashing. No Node.js
+  sidecars, no message queues, no container zoo.
+- **Operable by one person.** Verified daily backups (`VACUUM INTO`,
+  quick-checked, rotated), configurable retention, a write-probe
+  healthcheck that fails loudly when the disk is full, slow-query
+  logging, and a `/metrics` endpoint in Prometheus text format.
 
-Documentación completa del contrato Ghost↔Tinybird, verificada contra código real
-(Ghost 6.58.0-rc.0 + TrafficAnalytics 1.0.351):
+## Install
 
-- **[docs/api-contract.md](docs/api-contract.md)** — resumen ejecutivo con todas las decisiones.
-- **[docs/contract/ghost-side.md](docs/contract/ghost-side.md)** — lado Ghost: config, pipes
-  (SQL literal de cada uno), JWT, formato de respuestas, fixtures, SSRF guard.
-- **[docs/contract/trafficanalytics-side.md](docs/contract/trafficanalytics-side.md)** — lado
-  collector: payload exacto, bots, session_id, batching, tokens, fixtures literales.
+Once the repository is public, the one-liner:
 
-Hallazgos que cambiaron el plan inicial: el Admin consulta el backend **desde el navegador**
-(CORS obligatorio), no existe `user_signature` (es `session_id` calculada por el collector),
-`location` viene del navegador (sin geo server-side), los pipes `_v2` están aparcados, el JWT
-lo auto-firma Ghost con un secreto compartido, y la entrega es at-least-once (dedup por
-`event_id`).
+```sh
+curl -fsSL https://raw.githubusercontent.com/gnacho/ghostbird/main/install.sh | sh
+```
 
-## Fases
+The script detects your platform, downloads a release binary with
+mandatory sha256 verification, creates a dedicated system user, writes a
+hardened systemd unit (sandboxed, `ProtectSystem=strict`, memory cap)
+and a random admin token shown exactly once. It is idempotent: upgrades
+keep your data, port and token. See `install.sh --help` for options
+including `--uninstall` and `--purge`.
 
-| Fase | Estado | Contenido |
-|---|---|---|
-| 0. Reconocimiento | ✅ Completada | Contrato documentado (docs/). |
-| 1. MVP ingesta | ✅ Completada | Single binary: collector `POST /api/v1/page_hit` (bots, UA, session_id) + `POST /v0/events` (compat TrafficAnalytics) + SQLite + CORS + `/healthz`. |
-| 2. Pipes lectura | ✅ Completada | 13 pipes v1 + JWT HS256 scoped + `filtered_sessions` en SQLite. **Tests de fidelidad: la suite YAML oficial de Tinybird pasa entera contra el mismo fixture.** |
-| 3. Integración Ghost | ✅ Completada | Verificado end-to-end con Ghost 6.57.1 real: tracker en el HTML, page_hit del navegador real almacenado, JWT firmado por Ghost, dashboard Admin pintando "Unique visitors" y "online" desde GhostBird. |
-| 4. Robustez | 🔶 Esencial hecha | Job nocturno: purge de sales, retención configurable (`-retention-days`), backup diario verificado con VACUUM INTO + rotación 14 días (`-backup-dir`), `PRAGMA optimize`+checkpoint. Pendiente: rate limiting, métricas Prometheus, cobertura >70%. |
-| 5. Comunidad | ⬜ | README EN/ES, instalador one-liner, CI, licencia (a decidir), anuncio. |
+From source:
 
-## Deploy con Ghost real (verificado con Ghost 6.57.1)
+```sh
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ghostbird ./cmd/ghostbird
+./ghostbird -addr 127.0.0.1:18181 -db /var/lib/ghostbird/ghostbird.db
+```
 
-GhostBird necesita ser alcanzable por (a) los navegadores de los visitantes
-(tracker) y (b) el navegador del Admin (pipes) → sírvelo bajo el mismo dominio
-que tu Ghost con nginx:
+### Point Ghost at it
+
+Serve the binary behind nginx on the same domain as your site (the
+visitor's browser and your admin's browser both call it cross-origin,
+so keep it under your site's hostname and pass the client IP through):
 
 ```nginx
 location /ghb/ {
+    limit_req zone=ghb_ingest burst=60 nodelay;   # 30r/s zone, anti junk
     proxy_pass http://127.0.0.1:18181/;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;  # imprescindible: session_id firma la IP
-    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
 ```
 
-En `config.production.json` (o el env de tu Ghost):
+Then in Ghost's `config.production.json`:
 
 ```json
 {
   "tinybird": {
-    "workspaceId": "ghostbird-local",
-    "adminToken": "<EL MISMO secreto que pasaste a GhostBird con -admin-token>",
-    "tracker": { "endpoint": "https://TU-SITIO/ghb/api/v1/page_hit", "datasource": "analytics_events" },
+    "workspaceId": "ghostbird",
+    "adminToken": "THE SAME SECRET you passed as -admin-token",
+    "tracker": {
+      "endpoint": "https://YOUR-SITE/ghb/api/v1/page_hit",
+      "datasource": "analytics_events"
+    },
     "stats": {
       "endpoint": "http://127.0.0.1:18181",
-      "endpointBrowser": "https://TU-SITIO/ghb"
+      "endpointBrowser": "https://YOUR-SITE/ghb"
     }
   }
 }
 ```
 
-Notas verificadas:
-- `stats.endpoint` (server-side) puede ser `127.0.0.1` si Ghost y GhostBird
-  comparten host. OJO: el guard SSRF de Ghost bloquea IPs privadas en
-  `env: production`; con `env: development` funciona directo (así está
-  probado). En producción real usa un hostname que resuelva, o el mismo
-  dominio público (`/ghb/`).
-- Reinicia Ghost tras cambiar la config (cachea el tracker en memoria).
-- El setting BD `web_analytics` (default on) es el interruptor del dashboard.
+Restart Ghost (it caches the tracker in memory). The analytics tab now
+renders from your server.
 
-## Ejecución (Fase 1)
+Note for strict production setups: Ghost's own HTTP client refuses
+private-range IPs in `env: production`, so `stats.endpoint` should be a
+resolvable hostname (or the same public `/ghb/` path). With
+`env: development` localhost works as-is.
 
-```sh
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ghostbird ./cmd/ghostbird
-./ghostbird -addr :8080 -db data/ghostbird.db
-```
+### Endpoints
 
-Flags (equiv. env `GHOSTBIRD_ADDR`, `GHOSTBIRD_DB`, `GHOSTBIRD_INGEST_TOKEN`,
-`GHOSTBIRD_ADMIN_TOKEN`, `GHOSTBIRD_STATS_TOKEN`, `GHOSTBIRD_TRUST_PROXY`,
-`GHOSTBIRD_RETENTION_DAYS`, `GHOSTBIRD_BACKUP_DIR`, `GHOSTBIRD_LOG_LEVEL`):
-`-admin-token` activa la auth JWT de los pipes ( ponlo SIEMPRE si el servicio
-es alcanzable desde fuera: sin él, `/v0/pipes/` queda abierto);
-`-ingest-token` activa la auth de `/v0/events`; `-trust-proxy` (default true)
-toma la primera IP de X-Forwarded-For. Un env malformado aborta el arranque.
-
-### systemd (producción)
-
-Usuario dedicado + secreto en EnvironmentFile (NUNCA en ExecStart: cmdline es
-legible en /proc por cualquier usuario local) + sandbox:
-
-```ini
-[Unit]
-Description=GhostBird (Tinybird drop-in for Ghost analytics)
-After=network.target
-
-[Service]
-User=ghostbird
-EnvironmentFile=/etc/ghostbird/ghostbird.env   # GHOSTBIRD_ADMIN_TOKEN=...
-ExecStart=/opt/ghostbird/ghostbird -addr 127.0.0.1:18181 -db /opt/ghostbird/data/ghostbird.db -trust-proxy
-Restart=always
-RestartSec=10
-NoNewPrivileges=yes
-ProtectSystem=strict
-ReadWritePaths=/opt/ghostbird/data
-ProtectHome=yes
-PrivateTmp=yes
-MemoryMax=256M
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Endpoints:
-
-| Ruta | Qué hace |
+| Route | Purpose |
 |---|---|
-| `POST /api/v1/page_hit?name=analytics_events` | Collector: valida, filtra bots (202 stealth), enriquece (UA→os/browser/device, referrer parseado con port de @tryghost/referrer-parser, source normalizado con el mapa mv_hits, `session_id=sha256(salt:site:ip:ua)` con sal diaria por sitio) y almacena en SQLite. Responde `202 {"message":"Page hit event received"}`. |
-| `POST /v0/events?name=analytics_events[&wait=true]` | Events API (compat TrafficAnalytics como collector): NDJSON u objeto único, Bearer o `?token=`; dedup por `(site_uuid, event_id)` (at-least-once); `device=bot` se descarta. Responde `202 {"success":true}`. |
-| `GET /healthz` | `{"status":"ok","events":N,"last_write_ok_sec":S}` (503 si la BD no responde o no admite writes >26 h: disco lleno/BD rota). |
-| `GET /metrics` | Métricas en formato texto Prometheus (page_hits, bots, dupes, errores de ingesta, latencia/slow-count por pipe, tamaños BD/WAL). Sin dependencias; apunta un scraper cuando tengas uno. |
+| `POST /api/v1/page_hit` | Collector called by visitors' browsers. Bots get the same 202 and are dropped. |
+| `POST /v0/events` | Events API, for compatibility with the official TrafficAnalytics collector if you prefer to run one. NDJSON, deduplicated by event id. |
+| `GET/POST /v0/pipes/{name}.json` | The 13 query endpoints the dashboard consumes. JWT HS256 (Bearer or `?token=`) or a static token. |
+| `GET /healthz` | Read probe plus a write probe (`last_write_ok_sec`): 503 when the database cannot accept writes. |
+| `GET /metrics` | Prometheus text format. Ingest counters, per-pipe latency, database sizes. |
 
-Eventos en tabla `events` aplanada (una fila = un page_hit, campos
-normalizados a `""`, caps de 2 KB por campo y 16 KB del raw, `"undefined"`→`""`
-en UUIDs, `source` pre-normalizado) + tabla `salts` (sal diaria por sitio,
-purge a 7 días) + **tabla `sessions` agregada** (migración v3 con backfill:
-una fila por sesión con pageviews/first/last_ts y los atributos del primer
-hit, mantenida incrementalmente en la ingesta; los pipes consultan sesiones,
-no el histórico de eventos — el equivalente de `_mv_session_data` de
-Tinybird). Migraciones con `PRAGMA user_version`. Single-writer (WAL,
-busy_timeout, txlock IMMEDIATE, MaxOpenConns 1).
+## Verified against the real thing
 
-CORS en todo el servicio: `origin *`, métodos GET/POST/PUT/DELETE/OPTIONS,
-headers `Origin, X-Requested-With, Content-Type, Accept, Authorization,
-x-site-uuid` (réplica de TrafficAnalytics; el navegador del visitante Y el
-Admin llaman cross-origin).
+Two kinds of verification, both reproducible from this repo:
 
-Tests: `go test -race ./...` (parsing tolerante con fixtures del e2e del AS,
-bots, derivación UA, firma, referrer port, normalización source, dedup,
-endpoints e2e con SQLite temporal).
+1. **Fidelity suite.** The upstream provider publishes a YAML test suite
+   with exact expected outputs per query endpoint. Those cases (all of
+   them) plus their fixture dataset are vendored in
+   `internal/pipes/testdata/` and run as ordinary Go tests: same input,
+   same output, including tie-order tolerance.
+2. **End to end.** A real browser visiting a real Ghost 6.57.1 site
+   produces events in the database, and the admin dashboard renders
+   visitors, sessions and sources from GhostBird. This included catching
+   a detail invisible to any spec reading: the dashboard's chart library
+   calls the query API with POST and the token in the query string, not
+   as a Bearer header.
 
-## Decisiones registradas
+The project also went through a three-lens audit (security, SRE,
+latent bugs). Two P1 findings were fixed test-first: an expired-token
+acceptance path and a broken "direct traffic" filter. The audit trail
+lives in the commit history.
 
-- **Single binary con collector integrado** (opción B): el usuario de GhostBird despliega un
-  solo servicio; TrafficAnalytics (Node) deja de ser necesario. La API `/v0/events` se
-  mantiene por compatibilidad para quien prefiera el collector oficial.
-- **Dedup por `event_id`** (UNIQUE + INSERT OR IGNORE) por semántica at-least-once.
-- **SQLite single-writer** con las pragmas del stack (WAL, busy_timeout, BEGIN IMMEDIATE).
-- Sin Docker en el flujo de desarrollo del autor (pruebas en LXC si hace falta).
-- **Referrer parsing**: port fiel de `@tryghost/referrer-parser` 0.1.21 (MIT) con su mapa de
-  2.381 referers embebido (`internal/ingest/data/referrers.json` + `referrers.LICENSE`),
-  más la normalización de `source` del mapa de `mv_hits.pipe`. La autoreferencia nunca se
-  trata como interna (el AS instancia el parser sin siteUrl).
-- **os/browser se recomputan del user-agent** con las regexes literales de `mv_hits`
-  (incluye su quirk: iPhone→macos, Android→linux porque "mac"/"linux" van antes en el CASE);
-  `device` sí usa detección factual móvil-primero (es lo que el dashboard consume).
+## Roadmap
+
+- Public repository and tagged releases (the installer ships already).
+- Optional PostgreSQL backend for very high traffic sites.
+- Rate limiting and per-site quotas in-process (nginx covers it today).
+- Localization of the (minimal) operator-facing strings.
+
+## Credits
+
+- The query semantics, test suite and fixture data come from
+  [Ghost](https://github.com/TryGhost/Ghost) (MIT).
+- The collector behavior (bot rules, session hashing, referrer
+  classification table) replicates
+  [TrafficAnalytics](https://github.com/TryGhost/TrafficAnalytics) and
+  `@tryghost/referrer-parser` (MIT).
+- The single-binary-and-a-database philosophy follows
+  [GoatCounter](https://github.com/arp242/goatcounter)'s example.
+
+GhostBird is an independent project. It is not affiliated with, endorsed
+by, or connected to the Ghost Foundation or Tinybird.
+
+## License
+
+AGPL-3.0. See [LICENSE](LICENSE). The vendor credits above keep their
+own licenses. If you run a modified GhostBird on a public server, the
+AGPL asks you to offer your changes back to everyone: that clause is
+the point, not a footnote.
