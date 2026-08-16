@@ -106,9 +106,39 @@ CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ghostbird ./cmd/ghostbird
 ```
 
 Flags (equiv. env `GHOSTBIRD_ADDR`, `GHOSTBIRD_DB`, `GHOSTBIRD_INGEST_TOKEN`,
-`GHOSTBIRD_TRUST_PROXY`, `GHOSTBIRD_LOG_LEVEL`): `-ingest-token` activa la auth
-de `/v0/events` (Bearer o `?token=`); sin él queda abierta como el collector
-del AS. `-trust-proxy` (default true) toma la primera IP de X-Forwarded-For.
+`GHOSTBIRD_ADMIN_TOKEN`, `GHOSTBIRD_STATS_TOKEN`, `GHOSTBIRD_TRUST_PROXY`,
+`GHOSTBIRD_RETENTION_DAYS`, `GHOSTBIRD_BACKUP_DIR`, `GHOSTBIRD_LOG_LEVEL`):
+`-admin-token` activa la auth JWT de los pipes ( ponlo SIEMPRE si el servicio
+es alcanzable desde fuera: sin él, `/v0/pipes/` queda abierto);
+`-ingest-token` activa la auth de `/v0/events`; `-trust-proxy` (default true)
+toma la primera IP de X-Forwarded-For. Un env malformado aborta el arranque.
+
+### systemd (producción)
+
+Usuario dedicado + secreto en EnvironmentFile (NUNCA en ExecStart: cmdline es
+legible en /proc por cualquier usuario local) + sandbox:
+
+```ini
+[Unit]
+Description=GhostBird (Tinybird drop-in for Ghost analytics)
+After=network.target
+
+[Service]
+User=ghostbird
+EnvironmentFile=/etc/ghostbird/ghostbird.env   # GHOSTBIRD_ADMIN_TOKEN=...
+ExecStart=/opt/ghostbird/ghostbird -addr 127.0.0.1:18181 -db /opt/ghostbird/data/ghostbird.db -trust-proxy
+Restart=always
+RestartSec=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/ghostbird/data
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
+```
 
 Endpoints:
 
