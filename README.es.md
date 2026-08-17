@@ -32,6 +32,31 @@ Ghost sigue creyendo que habla con Tinybird; solo cambias la URL de conexión.
 | Auth queries | JWT HS256 (scopes + fixed_params.site_uuid) + tokens estáticos | Compatible con el token que Ghost auto-firma. |
 | Deploy | Binario + systemd; sin Docker necesario | Igual que el resto de apps self-hosted del autor. |
 
+## Instalación rápida
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/gnacho/ghostbird/main/install.sh | sh
+```
+
+El instalador detecta `amd64`/`arm64`, descarga el binario del último release, verifica el
+checksum con `sha256sum`, crea el usuario `ghostbird` y despliega el binario en
+`/opt/ghostbird/bin/ghostbird`. También instala la unidad systemd
+(`/etc/systemd/system/ghostbird.service`) y el fichero de entorno
+(`/etc/ghostbird/ghostbird.env`). Al finalizar muestra el token de ingesta y el comando
+para arrancar el servicio:
+
+```sh
+systemctl enable --now ghostbird
+```
+
+Requisitos:
+- Linux con `systemd`.
+- `curl`, `tar`, `sha256sum`, `useradd`.
+- Conexión saliente a GitHub Releases.
+
+> El instalador no requiere `git`, `go` ni `docker`. Si prefieres ver qué haría antes de
+tocar el sistema, ejecuta `sh install.sh --dry-run`.
+
 ## Contrato (Fase 0 — COMPLETADA)
 
 Documentación completa del contrato Ghost↔Tinybird, verificada contra código real
@@ -58,7 +83,7 @@ lo auto-firma Ghost con un secreto compartido, y la entrega es at-least-once (de
 | 2. Pipes lectura | ✅ Completada | 13 pipes v1 + JWT HS256 scoped + `filtered_sessions` en SQLite. **Tests de fidelidad: la suite YAML oficial de Tinybird pasa entera contra el mismo fixture.** |
 | 3. Integración Ghost | ✅ Completada | Verificado end-to-end con Ghost 6.57.1 real: tracker en el HTML, page_hit del navegador real almacenado, JWT firmado por Ghost, dashboard Admin pintando "Unique visitors" y "online" desde GhostBird. |
 | 4. Robustez | 🔶 Esencial hecha | Job nocturno: purge de sales, retención configurable (`-retention-days`), backup diario verificado con VACUUM INTO + rotación 14 días (`-backup-dir`), `PRAGMA optimize`+checkpoint. Pendiente: rate limiting, métricas Prometheus, cobertura >70%. |
-| 5. Comunidad | ✅ Completada | README EN/ES, instalador one-liner, licencia AGPL-3.0 y landing pública en [ghostbird.cloudless.club](https://ghostbird.cloudless.club/). Pendiente: CI y anuncio. |
+| 5. Comunidad | ✅ Completada | README EN/ES, instalador one-liner, licencia AGPL-3.0, landing pública en [ghostbird.cloudless.club](https://ghostbird.cloudless.club/) y CI en GitHub Actions. Pendiente: publicar el anuncio de lanzamiento. |
 
 ## Deploy con Ghost real (verificado con Ghost 6.57.1)
 
@@ -123,19 +148,21 @@ legible en /proc por cualquier usuario local) + sandbox:
 ```ini
 [Unit]
 Description=GhostBird (Tinybird drop-in for Ghost analytics)
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 User=ghostbird
+Group=ghostbird
 EnvironmentFile=/etc/ghostbird/ghostbird.env   # GHOSTBIRD_ADMIN_TOKEN=...
-ExecStart=/opt/ghostbird/ghostbird -addr 127.0.0.1:18181 -db /opt/ghostbird/data/ghostbird.db -trust-proxy
+ExecStart=/opt/ghostbird/bin/ghostbird
 Restart=always
 RestartSec=10
-NoNewPrivileges=yes
+NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/opt/ghostbird/data
+ReadWritePaths=/var/lib/ghostbird
 ProtectHome=yes
-PrivateTmp=yes
+PrivateTmp=true
 MemoryMax=256M
 
 [Install]
