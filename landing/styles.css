@@ -11,6 +11,14 @@
   --radius: 16px;
   --radius-sm: 12px;
 
+  /* Motion: entradas Premium (ver DESIGN.md §Motion).
+     Una sola familia de entrada para toda la landing. */
+  --dur-enter: 420ms;
+  --ease-enter: cubic-bezier(0.4, 0, 0.2, 1);
+  --stagger: 80ms;
+  --enter-y: 22px;
+  --dur-feedback: 90ms;
+
   /* Bloques de código: siempre oscuros, en ambos temas */
   --code-bg: #0E1428;
   --code-ink: #C9D3E8;
@@ -382,6 +390,20 @@ summary:focus-visible {
   justify-items: stretch;
 }
 
+/* Capa ambiente: respiración muy sutil del mockup (sine, 7s) */
+.hero-visual::before {
+  content: "";
+  position: absolute;
+  inset: -14% -8%;
+  z-index: -1;
+  border-radius: 40px;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 58% at 28% 22%, var(--glow-a), transparent 72%),
+    radial-gradient(52% 52% at 76% 82%, var(--glow-b), transparent 72%);
+  animation: gb-breathe 7s ease-in-out infinite;
+}
+
 .mock-card {
   padding: 20px 20px 16px;
   box-shadow: var(--shadow);
@@ -602,10 +624,7 @@ section[id] { scroll-margin-top: 86px; }
 
 .feat {
   padding: 26px 24px;
-  transition: transform 160ms ease, border-color 160ms ease;
 }
-
-.feat:hover { transform: translateY(-3px); border-color: var(--accent); }
 
 .feat h3 {
   margin: 16px 0 8px;
@@ -795,10 +814,7 @@ section[id] { scroll-margin-top: 86px; }
 
 .who-card {
   padding: 26px 24px;
-  transition: transform 160ms ease, border-color 160ms ease;
 }
-
-.who-card:hover { transform: translateY(-3px); border-color: var(--accent); }
 
 .who-card h3 {
   margin: 16px 0 8px;
@@ -1023,18 +1039,51 @@ section[id] { scroll-margin-top: 86px; }
   color: var(--muted);
 }
 
-/* ---------- Reveal ---------- */
+/* ---------- Sistema unificado de entrada (Premium) ----------
+   Un solo sistema para toda la landing: JS añade .rv a los
+   [data-reveal] y .in al activarse (IO o load). Los grupos
+   [data-reveal-group] reciben --i para el stagger.
+   Variables: --dur-enter, --ease-enter, --stagger (DESIGN.md). */
 
-.reveal {
+.rv {
   opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 220ms ease-out, transform 220ms ease-out;
+  transform: translateY(var(--enter-y));
 }
 
-.reveal.in {
+.rv.rv-soft { --enter-y: 8px; }
+
+/* La transición vive SOLO en el estado destino (.in): al armar .rv no hay
+   fade-out accidental y la entrada arranca con delay+easing correctos. */
+.rv.in {
   opacity: 1;
   transform: none;
+  transition:
+    opacity var(--dur-enter) var(--ease-enter),
+    transform var(--dur-enter) var(--ease-enter);
+  transition-delay: calc(var(--i, 0) * var(--stagger));
 }
+
+/* Al terminar la entrada, JS añade .done: perfil Corporate
+   para micro-feedback de hover (respuesta < 100ms). */
+.rv.done {
+  transition:
+    transform var(--dur-feedback) ease-out,
+    border-color var(--dur-feedback) ease-out;
+  transition-delay: 0s;
+}
+
+.feat.done:hover,
+.who-card.done:hover,
+.shot-card.done:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+}
+
+/* Hero: entrada escalonada al load (breve, < 600ms total) */
+.hero-inner { --stagger: 60ms; --dur-enter: 350ms; }
+
+/* FAQ: sutil y algo más junta */
+.faq-list { --stagger: 60ms; }
 
 /* ---------- Animaciones ---------- */
 
@@ -1049,17 +1098,22 @@ section[id] { scroll-margin-top: 86px; }
   100% { box-shadow: 0 0 0 0 rgba(127, 219, 202, 0); }
 }
 
+@keyframes gb-breathe {
+  0%, 100% { opacity: 0.45; transform: translateY(0); }
+  50% { opacity: 0.9; transform: translateY(-6px); }
+}
+
 /* ---------- Reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 
-  .hero-bird, .pulse-dot { animation: none; }
+  .hero-bird, .pulse-dot, .hero-visual::before { animation: none; }
 
   .marquee { overflow-x: auto; }
   .marquee-track { animation: none; }
 
-  .reveal {
+  .rv {
     opacity: 1;
     transform: none;
     transition: none;

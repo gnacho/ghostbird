@@ -1,4 +1,4 @@
-/* GhostBird landing: idioma, tema, count-up, FAQ, copiar y reveal */
+  /* GhostBird landing: idioma, tema, count-up, FAQ, copiar y reveal */
 (function () {
   'use strict';
 
@@ -195,23 +195,66 @@
     document.body.removeChild(ta);
   }
 
-  /* ---------- Reveal sutil al hacer scroll ---------- */
-  var reveals = Array.prototype.slice.call(
-    document.querySelectorAll('.sec, .marquee-band, .footer, .hero-inner')
-  );
-  reveals.forEach(function (r) { r.classList.add('reveal'); });
-  if ('IntersectionObserver' in window && !reduceMotion) {
-    var ro = new IntersectionObserver(function (entries) {
+  /* ---------- Sistema unificado de entrada (Premium, un solo sistema) ----------
+     [data-reveal] entra con translateY + opacity; los hijos de un
+     [data-reveal-group] reciben --i para el stagger (calc(--i * --stagger)).
+     Los grupos con [data-reveal-load] (hero) entran al cargar la página;
+     el resto, al cruzar el viewport (una sola activación por elemento). */
+  var rvAll = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+  rvAll.forEach(function (el) {
+    el.classList.add('rv');
+    if (el.hasAttribute('data-reveal-soft')) el.classList.add('rv-soft');
+  });
+
+  document.querySelectorAll('[data-reveal-group]').forEach(function (group) {
+    var items = group.querySelectorAll('[data-reveal]');
+    Array.prototype.forEach.call(items, function (el, i) {
+      el.style.setProperty('--i', String(i));
+    });
+  });
+
+  function activate(el) {
+    el.classList.add('in');
+    var finish = function () { el.classList.add('done'); };
+    if (reduceMotion) { finish(); return; }
+    el.addEventListener('transitionend', function onEnd(ev) {
+      if (ev.target !== el) return;
+      if (ev.propertyName === 'transform' || ev.propertyName === 'opacity') {
+        el.removeEventListener('transitionend', onEnd);
+        finish();
+      }
+    });
+    /* Red de seguridad: la entrada más larga acaba en 820ms */
+    setTimeout(finish, 1300);
+  }
+
+  var loadReveals = [];
+  var ioReveals = [];
+  rvAll.forEach(function (el) {
+    var g = el.closest('[data-reveal-group]');
+    if (g && g.hasAttribute('data-reveal-load')) loadReveals.push(el);
+    else ioReveals.push(el);
+  });
+
+  if (!('IntersectionObserver' in window) || reduceMotion) {
+    rvAll.forEach(activate);
+  } else {
+    /* Hero: dos rAF para pintar un frame en estado inicial y que la
+       transición de entrada arranque de verdad */
+    loadReveals.forEach(function (el) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { activate(el); });
+      });
+    });
+    var rvo = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting) {
-          entry.target.classList.add('in');
-          ro.unobserve(entry.target);
+          activate(entry.target);
+          rvo.unobserve(entry.target);
         }
       });
-    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
-    reveals.forEach(function (r) { ro.observe(r); });
-  } else {
-    reveals.forEach(function (r) { r.classList.add('in'); });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    ioReveals.forEach(function (el) { rvo.observe(el); });
   }
 
   /* ---------- Arranque ---------- */
