@@ -21,6 +21,7 @@ Fuente de verdad visual de la landing. Si CSS y este fichero divergen, manda est
 | Logo marquee de clientes | Marquee de "protocol facts" (chips glass con icono Lucide): NDJSON, JWT HS256, 13 pipes, SQLite WAL, 0 telemetría, ~11 MB, backups, /metrics |
 | "A strong foundation" features | Grid 2x2 de feature cards glass: Drop-in fiel / Sesiones agregadas / Métricas honestas / Operable por una persona |
 | Split texto+visual | "Ghost ni se entera": texto a la izquierda, config tinybird JSON en card glass oscura con sintaxis coloreada a la derecha |
+| Galería de capturas | "No es un mockup": 2 capturas reales del dashboard nativo de Ghost (Ghost 6.57) en producción, cards glass con marco browser (3 dots + dominio), lazy loading y lightbox accesible |
 | Stats counters | 6 contadores con count-up al entrar en viewport (IntersectionObserver): 13 pipes, 2 deps Go, ~11 MB, <10 MB RAM, 0 salientes, 100% tests |
 | Statement tipográfico grande | "El panel de analytics que ya tienes, alimentado por tu servidor." con gradiente en "ya tienes" |
 | Expertise 3 columnas | Tres compromisos: AGPL para siempre / Community driven / Los datos no salen |
@@ -58,10 +59,66 @@ Fuente de verdad visual de la landing. Si CSS y este fichero divergen, manda est
   gigante flotando en el hero (fill al 5% del cian), favicon con la nueva paleta.
 - **Iconografía**: sprite SVG local de Lucide (24px, stroke 1.75), sin CDN ni
   dependencias JS externas.
-- **Motion**: reveal sutil al scroll (10px, 220ms), marquee infinito (38s
-  lineal), levitación del pájaro (9s), pulse-dot del eyebrow, count-up con
+- **Motion**: ver §Motion (sistema unificado de entrada). Marquee infinito
+  (38s lineal), levitación del pájaro (9s), pulse-dot del eyebrow, count-up con
   ease-out cúbico (1.1s), acordeón con grid-rows (280ms). Todo congelado con
   `prefers-reduced-motion`; el marquee pasa a scroll manual.
+
+## Motion (Phase 3: sistema unificado de entrada)
+
+Personalidad **Premium** para las entradas; **Corporate** para el
+micro-feedback. Un solo sistema (`[data-reveal]` + `.rv`/`.in`/`.done` en
+`app.js`/`styles.css`), sin convivencia con el reveal del datasheet.
+
+**Variables CSS** (en `:root`, fuente de verdad):
+
+| Variable | Valor | Uso |
+|---|---|---|
+| `--dur-enter` | `420ms` | Duración de entrada (Premium 350-600ms) |
+| `--ease-enter` | `cubic-bezier(0.4, 0, 0.2, 1)` | Curva de entrada (decelerate, 0% overshoot) |
+| `--stagger` | `80ms` | Separación entre hermanos de un grupo |
+| `--enter-y` | `22px` | Distancia de entrada (soft: 8px) |
+| `--dur-feedback` | `90ms` | Respuesta de hover (Corporate, < 100ms) |
+
+Entrada = position + opacity (nunca solo opacity), dirección siempre desde
+abajo. El stagger es `calc(var(--i) * --stagger)` con `--i` asignado por JS
+según el orden dentro del `[data-reveal-group]`.
+
+**Grupos y tiempos** (presupuesto de stagger = último delay, siempre < 500ms):
+
+| Grupo | Items | Stagger | Último delay | Notas |
+|---|---|---|---|---|
+| Hero (al load) | 5 | 60ms | 240ms | Override local `--dur-enter: 350ms`; eyebrow → headline → sub → CTAs → mockup; total < 600ms |
+| Features 2x2 | 4 | 80ms | 240ms | translateY 22px + opacity |
+| Split cómo funciona | 2 | 80ms | 80ms | Copía y card de código |
+| Galería | 2 | 80ms | 80ms | Cards glass con marco browser |
+| Stats | 6 | 80ms | 400ms | El count-up mantiene su propio IO (threshold 0.35) y manda el momento |
+| Statement | 1 | - | 0ms | Soft (8px) |
+| Tres compromisos | 3 | 80ms | 160ms | Columnas |
+| Para quién | 4 | 80ms | 240ms | Dirección consistente (desde abajo) |
+| FAQ | 5 | 60ms | 240ms | Soft (opacity + 8px) |
+| Slots / install | 1 c/u | - | 0ms | Cards sueltas |
+
+**Capas de motion** (skill motion-design):
+- Primaria: la entrada de las cards.
+- Secundaria: hover Premium en cards glass (`.rv.done:hover`: lift 3px + borde
+  acento, 90ms). El perfil de hover solo se activa cuando la entrada termina
+  (`.done` vía `transitionend`), para no pisar la transición de entrada.
+- Ambiente: respiración del glow tras el mockup del hero
+  (`gb-breathe`, 7s ease-in-out, opacidad 0.45 → 0.9). Nada más.
+
+**Sin animar**: chips del marquee (el marquee ya vive), nav, footer, section
+heads. Se descartó la sombra "que llega después" en las feature cards: las
+glass no llevan sombra en reposo (regla de una sola sombra por card elevada) y
+animarla pagaría un repaint por el que no aportaba.
+
+**Reduced motion**: todo visible sin transición (`.rv` estático + kill global
+de duraciones), lightbox instantáneo, sin cuenta atrás en el count-up.
+
+**Lightbox** (Corporate): overlay `rgba(4,7,18,.86)`, cierre con Escape, clic
+fuera y botón; entrada 220/260ms decelerate, salida 150ms accelerate
+(`[hidden]` de vuelta al terminar). `role="dialog"` + `aria-modal`, foco al
+botón de cerrar y devolución al disparador.
 
 ## Craft layer (Phase 2)
 
@@ -76,7 +133,7 @@ Fuente de verdad visual de la landing. Si CSS y este fichero divergen, manda est
   targets ≥36px; aria-labels i18n; mockup decorativo con aria-hidden; 1 h1.
 - **SEO**: title/description ES/EN, OG/Twitter con og.png real (1200x630),
   canonical + hreflang es/en/x-default, JSON-LD SoftwareApplication +
-  Organization + FAQPage, robots.txt, sitemap.xml.
+  Organization + 2 ImageObject (capturas) + FAQPage, robots.txt, sitemap.xml.
 - **i18n**: diccionario único `i18n.js` (ES/EN paridad verificada por script),
   auto por navegador + `?hl=` + localStorage `ghostbird-lang`; selector ES/EN.
 - **Temas**: dark por defecto (Luminex es dark-first); toggle sol/luna con
@@ -99,3 +156,7 @@ Fuente de verdad visual de la landing. Si CSS y este fichero divergen, manda est
 - 2026-08-17: rediseño completo a tema Luminex adaptado por decisión del
   propietario (rama feat/landing-luminex). Copy reutilizado y reorganizado
   a claves nuevas; SEO, favicon-pájaro, slots y verificación conservados.
+- 2026-08-17: sistema unificado de entrada Premium con stagger y hover
+  Corporate (rama feat/landing-motion) + galería "No es un mockup" con
+  capturas reales del dashboard y lightbox accesible. og.png sin cambios
+  (el hero no cambia); screenshot.png regenerado.

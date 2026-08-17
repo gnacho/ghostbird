@@ -1,4 +1,4 @@
-/* GhostBird landing: idioma, tema, count-up, FAQ, copiar y reveal */
+  /* GhostBird landing: idioma, tema, count-up, FAQ, copiar, reveal y lightbox */
 (function () {
   'use strict';
 
@@ -18,6 +18,10 @@
     document.querySelectorAll('[data-i18n-aria]').forEach(function (el) {
       var key = el.getAttribute('data-i18n-aria');
       if (dict[key]) el.setAttribute('aria-label', dict[key]);
+    });
+    document.querySelectorAll('[data-i18n-alt]').forEach(function (el) {
+      var key = el.getAttribute('data-i18n-alt');
+      if (dict[key]) el.setAttribute('alt', dict[key]);
     });
     root.lang = lang;
     if (dict['meta.title']) document.title = dict['meta.title'];
@@ -195,23 +199,160 @@
     document.body.removeChild(ta);
   }
 
-  /* ---------- Reveal sutil al hacer scroll ---------- */
-  var reveals = Array.prototype.slice.call(
-    document.querySelectorAll('.sec, .marquee-band, .footer, .hero-inner')
-  );
-  reveals.forEach(function (r) { r.classList.add('reveal'); });
-  if ('IntersectionObserver' in window && !reduceMotion) {
-    var ro = new IntersectionObserver(function (entries) {
+  /* ---------- Sistema unificado de entrada (Premium, un solo sistema) ----------
+     [data-reveal] entra con translateY + opacity; los hijos de un
+     [data-reveal-group] reciben --i para el stagger (calc(--i * --stagger)).
+     Los grupos con [data-reveal-load] (hero) entran al cargar la página;
+     el resto, al cruzar el viewport (una sola activación por elemento). */
+  var rvAll = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+  rvAll.forEach(function (el) {
+    el.classList.add('rv');
+    if (el.hasAttribute('data-reveal-soft')) el.classList.add('rv-soft');
+  });
+
+  document.querySelectorAll('[data-reveal-group]').forEach(function (group) {
+    var items = group.querySelectorAll('[data-reveal]');
+    Array.prototype.forEach.call(items, function (el, i) {
+      el.style.setProperty('--i', String(i));
+    });
+  });
+
+  function activate(el) {
+    el.classList.add('in');
+    var finish = function () { el.classList.add('done'); };
+    if (reduceMotion) { finish(); return; }
+    el.addEventListener('transitionend', function onEnd(ev) {
+      if (ev.target !== el) return;
+      if (ev.propertyName === 'transform' || ev.propertyName === 'opacity') {
+        el.removeEventListener('transitionend', onEnd);
+        finish();
+      }
+    });
+    /* Red de seguridad: la entrada más larga acaba en 820ms */
+    setTimeout(finish, 1300);
+  }
+
+  var loadReveals = [];
+  var ioReveals = [];
+  rvAll.forEach(function (el) {
+    var g = el.closest('[data-reveal-group]');
+    if (g && g.hasAttribute('data-reveal-load')) loadReveals.push(el);
+    else ioReveals.push(el);
+  });
+
+  if (!('IntersectionObserver' in window) || reduceMotion) {
+    rvAll.forEach(activate);
+  } else {
+    /* Hero: dos rAF para pintar un frame en estado inicial y que la
+       transición de entrada arranque de verdad */
+    loadReveals.forEach(function (el) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { activate(el); });
+      });
+    });
+    var rvo = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting) {
-          entry.target.classList.add('in');
-          ro.unobserve(entry.target);
+          activate(entry.target);
+          rvo.unobserve(entry.target);
         }
       });
-    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
-    reveals.forEach(function (r) { ro.observe(r); });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    ioReveals.forEach(function (el) { rvo.observe(el); });
+  }
+
+  /* Carga diferida determinista de las capturas: data-src + IO.
+     loading="lazy" se mantiene como capa nativa; el IO garantiza que
+     no se pidan antes de acercarse a la galería (600px de margen). */
+  var shotImgs = Array.prototype.slice.call(document.querySelectorAll('.shot-btn img[data-src]'));
+  function loadShot(img) {
+    img.src = img.getAttribute('data-src');
+    img.removeAttribute('data-src');
+  }
+  if (!('IntersectionObserver' in window)) {
+    shotImgs.forEach(loadShot);
   } else {
-    reveals.forEach(function (r) { r.classList.add('in'); });
+    var sio = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          loadShot(entry.target);
+          sio.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: '600px 0px' });
+    shotImgs.forEach(function (img) { sio.observe(img); });
+  }
+
+  /* ---------- Lightbox de capturas ---------- */
+  var SHOTS = {
+    dashboard: { file: 'assets/shots/dashboard.webp', alt: 'gallery.alt1', cap: 'gallery.cap1' },
+    webtraffic: { file: 'assets/shots/webtraffic.webp', alt: 'gallery.alt2', cap: 'gallery.cap2' }
+  };
+  var lightbox = document.getElementById('lightbox');
+  var lbImg = document.getElementById('lbImg');
+  var lbCap = document.getElementById('lbCap');
+  var lbClose = document.getElementById('lbClose');
+  var lbOpen = false;
+  var lbLastFocus = null;
+  var lbHideTimer = null;
+
+  function lbFinishClose() {
+    if (lightbox.hidden) return;
+    lightbox.classList.remove('open');
+    lightbox.hidden = true;
+    if (lbLastFocus) {
+      try { lbLastFocus.focus(); } catch (e) { /* noop */ }
+      lbLastFocus = null;
+    }
+  }
+
+  function openLightbox(key) {
+    var shot = SHOTS[key];
+    if (!shot || !lightbox || lbOpen) return;
+    lbImg.src = shot.file;
+    lbImg.alt = dict[shot.alt] || '';
+    lbCap.textContent = dict[shot.cap] || '';
+    lbLastFocus = document.activeElement;
+    lightbox.hidden = false;
+    /* Relayout para que la transición de entrada se ejecute */
+    void lightbox.offsetWidth;
+    lightbox.classList.add('open');
+    lbOpen = true;
+    if (lbClose) lbClose.focus();
+  }
+
+  function closeLightbox() {
+    if (!lbOpen) return;
+    lbOpen = false;
+    if (reduceMotion) { lbFinishClose(); return; }
+    lightbox.classList.remove('open');
+    var finished = false;
+    function finish(ev) {
+      if (ev && ev.target !== lightbox) return;
+      if (finished) return;
+      finished = true;
+      clearTimeout(lbHideTimer);
+      lightbox.removeEventListener('transitionend', finish);
+      lbFinishClose();
+    }
+    lightbox.addEventListener('transitionend', finish);
+    lbHideTimer = setTimeout(finish, 400);
+  }
+
+  document.querySelectorAll('.shot-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      openLightbox(btn.getAttribute('data-shot'));
+    });
+  });
+
+  if (lightbox) {
+    if (lbClose) lbClose.addEventListener('click', closeLightbox);
+    lightbox.addEventListener('click', function (ev) {
+      if (!ev.target.closest('.lb-fig') && ev.target !== lbClose) closeLightbox();
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && lbOpen) closeLightbox();
+    });
   }
 
   /* ---------- Arranque ---------- */
