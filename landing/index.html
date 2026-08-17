@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -63,16 +63,7 @@
         "url": "https://ghostbird.cloudless.club/assets/shots/dashboard.webp",
         "width": 2880,
         "height": 1404,
-        "caption": "Overview: visitors, sessions y fuentes, del dashboard nativo de Ghost alimentado por GhostBird en producción"
-      },
-      {
-        "@type": "ImageObject",
-        "name": "Ghost dashboard web traffic fed by GhostBird",
-        "contentUrl": "https://ghostbird.cloudless.club/assets/shots/webtraffic.webp",
-        "url": "https://ghostbird.cloudless.club/assets/shots/webtraffic.webp",
-        "width": 2880,
-        "height": 1404,
-        "caption": "Web traffic: audiencias y desglose, del dashboard nativo de Ghost alimentado por GhostBird en producción"
+        "caption": "Overview: visitors, sessions and sources for Wikipedia, from the native Ghost dashboard fed by GhostBird"
       },
       {
         "@type": "FAQPage",
@@ -328,7 +319,7 @@
         <figure class="shot-card glass" data-reveal>
           <div class="shot-bar">
             <span class="mock-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="shot-domain mono">ghost.openerpspain.com</span>
+            <span class="shot-domain mono">en.wikipedia.org</span>
             <span class="shot-zoom" aria-hidden="true"><svg class="icon"><use href="#i-maximize"/></svg></span>
           </div>
           <button class="shot-btn" type="button" data-shot="dashboard" aria-label="Ampliar la captura: overview" data-i18n-aria="gallery.open1">
@@ -336,18 +327,6 @@
             <noscript><style>.shot-btn img[data-src]{display:none}</style><img src="assets/shots/dashboard.webp" alt="Captura del dashboard de Ghost: overview con visitantes únicos, sesiones y fuentes de tráfico" width="1440" height="702" loading="lazy"></noscript>
           </button>
           <figcaption data-i18n="gallery.cap1">Overview: visitors, sessions y fuentes</figcaption>
-        </figure>
-        <figure class="shot-card glass" data-reveal>
-          <div class="shot-bar">
-            <span class="mock-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="shot-domain mono">ghost.openerpspain.com</span>
-            <span class="shot-zoom" aria-hidden="true"><svg class="icon"><use href="#i-maximize"/></svg></span>
-          </div>
-          <button class="shot-btn" type="button" data-shot="webtraffic" aria-label="Ampliar la captura: web traffic" data-i18n-aria="gallery.open2">
-            <img data-src="assets/shots/webtraffic.webp" alt="Captura del dashboard de Ghost: web traffic con audiencias y desglose por fuente" data-i18n-alt="gallery.alt2" width="1440" height="702" loading="lazy" decoding="async">
-            <noscript><style>.shot-btn img[data-src]{display:none}</style><img src="assets/shots/webtraffic.webp" alt="Captura del dashboard de Ghost: web traffic con audiencias y desglose por fuente" width="1440" height="702" loading="lazy"></noscript>
-          </button>
-          <figcaption data-i18n="gallery.cap2">Web traffic: audiencias y desglose</figcaption>
         </figure>
       </div>
     </section>
@@ -362,21 +341,6 @@
         <div class="stat glass" data-reveal><span class="stat-num-wrap"><span aria-hidden="true">&lt;</span><span class="stat-num" data-target="10">10</span><span aria-hidden="true">MB</span></span><span class="stat-label" data-i18n="st.4">de RAM medidos en producción</span></div>
         <div class="stat glass" data-reveal><span class="stat-num" data-target="0">0</span><span class="stat-label" data-i18n="st.5">conexiones salientes</span></div>
         <div class="stat glass" data-reveal><span class="stat-num-wrap"><span class="stat-num" data-target="100">100</span><span aria-hidden="true">%</span></span><span class="stat-label" data-i18n="st.6">suite de tests del original, en verde</span></div>
-      </div>
-    </section>
-
-    <!-- SLOT 1: ideas del propietario (tras stats) -->
-    <!--
-      SLOT DE CONTENIDO 1 (data-slot="field-notes-1")
-      Hueco reservado para las ideas de temas del propietario.
-      Para rellenar: sustituir el párrafo interior por el contenido final
-      (unos 2 párrafos o una lista) manteniendo la clase .slot. Borrar este
-      comentario al rellenar.
-    -->
-    <section class="sec slot" data-slot="field-notes-1" id="notas-1">
-      <div class="slot-card glass" data-reveal>
-        <h2 class="slot-tag" data-i18n="slotA.tag">Espacio reservado · Notas de campo 1</h2>
-        <p class="slot-ph" data-i18n="slotA.p">Hueco para el contenido que decida el propietario: temas, casos y observaciones.</p>
       </div>
     </section>
 
@@ -508,19 +472,6 @@
       </div>
     </section>
 
-    <!-- SLOT 2: ideas del propietario (tras FAQ) -->
-    <!--
-      SLOT DE CONTENIDO 2 (data-slot="field-notes-2")
-      Segundo hueco para temas del propietario, antes del CTA final.
-      Misma mecánica que el slot 1.
-    -->
-    <section class="sec slot" data-slot="field-notes-2" id="notas-2">
-      <div class="slot-card glass" data-reveal>
-        <h2 class="slot-tag" data-i18n="slotB.tag">Espacio reservado · Notas de campo 2</h2>
-        <p class="slot-ph" data-i18n="slotB.p">Segundo hueco para el contenido que decida el propietario.</p>
-      </div>
-    </section>
-
     <!-- 10. CTA final -->
     <section class="sec install-band" id="install">
       <div class="install-card glass" data-reveal>
@@ -591,7 +542,7 @@
     </figure>
   </div>
 
-  <script src="i18n.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="i18n.js?v=4"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
