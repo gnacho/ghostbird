@@ -963,28 +963,6 @@ section[id] { scroll-margin-top: 86px; }
   .who-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
-/* ---------- Twin layout: features & who share a horizontal reading line on desktop ---------- */
-
-@media (min-width: 980px) {
-  #features,
-  #who {
-    display: grid;
-    grid-template-columns: minmax(230px, 0.92fr) 2fr;
-    gap: 44px;
-    align-items: start;
-  }
-
-  #features .sec-head,
-  #who .sec-head {
-    max-width: none;
-    margin-bottom: 0;
-  }
-
-  #features .feat-grid,
-  #who .who-grid {
-    margin-top: 0;
-  }
-}
 
 /* ---------- FAQ ---------- */
 
