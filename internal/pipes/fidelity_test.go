@@ -180,13 +180,14 @@ func parseYAMLCases(t *testing.T, path string) []yamlCase {
 			v := strings.TrimSpace(strings.TrimPrefix(line, "  expected_result:"))
 			v = strings.TrimSuffix(strings.TrimSuffix(v, "|"), "-")
 			v = strings.TrimSpace(v)
-			if v == "''" {
+			switch {
+			case v == "''":
 				cur.Expected = nil
 				inExpected = true // '' = explícitamente vacío: bloque sin líneas
-			} else if v != "" {
+			case v != "":
 				cur.Expected = []string{v}
 				inExpected = false
-			} else {
+			default:
 				// "|" (o "|-"): las líneas esperadas vienen a continuación.
 				inExpected = true
 			}

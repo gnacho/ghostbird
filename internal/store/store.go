@@ -133,7 +133,7 @@ var migrations = []string{
 // ejecuta las migraciones pendientes.
 func Open(path string) (*Store, error) {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return nil, fmt.Errorf("crear directorio de datos: %w", err)
 		}
 	}
@@ -148,7 +148,7 @@ func Open(path string) (*Store, error) {
 
 	s := &Store{db: db, path: path}
 	if err := s.migrate(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return s, nil
@@ -165,11 +165,11 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("migración v%d: %w", i+1, err)
 		}
 		if _, err := tx.Exec(migrations[i]); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("migración v%d: %w", i+1, err)
 		}
 		if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, i+1)); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("migración v%d (version): %w", i+1, err)
 		}
 		if err := tx.Commit(); err != nil {
@@ -260,7 +260,7 @@ func (s *Store) InsertEvents(now time.Time, evs []Event) (n int64, err error) {
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.Prepare(`
 		INSERT OR IGNORE INTO events (
@@ -275,7 +275,7 @@ func (s *Store) InsertEvents(now time.Time, evs []Event) (n int64, err error) {
 	if err != nil {
 		return 0, err
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	// Upsert de sesión agregada (mv_session_data). Solo se ejecuta para
 	// eventos REALMENTE nuevos (RowsAffected==1): el dedup no infla
@@ -301,7 +301,7 @@ func (s *Store) InsertEvents(now time.Time, evs []Event) (n int64, err error) {
 	if err != nil {
 		return 0, err
 	}
-	defer sessStmt.Close()
+	defer func() { _ = sessStmt.Close() }()
 
 	var inserted int64
 	insertedAt := now.Unix()
@@ -403,7 +403,7 @@ func (s *Store) DeleteEventsBefore(cutoff int64) (int64, error) {
 // corre desde una CONEXIÓN DE LECTURA DEDICADA para no ocupar la única
 // conexión de escritura (los page_hits siguen entrando durante el backup).
 func (s *Store) Backup(destPath string) error {
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o750); err != nil {
 		return err
 	}
 	tmp := destPath + ".tmp"
@@ -416,7 +416,7 @@ func (s *Store) Backup(destPath string) error {
 		return err
 	}
 	_, err = d.Exec(`VACUUM INTO ?`, tmp)
-	d.Close()
+	_ = d.Close()
 	if err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("vacuum into: %w", err)
@@ -429,7 +429,7 @@ func (s *Store) Backup(destPath string) error {
 	}
 	var ok string
 	qerr := v.QueryRow(`PRAGMA quick_check`).Scan(&ok)
-	v.Close()
+	_ = v.Close()
 	if qerr != nil || ok != "ok" {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("backup corrupto (quick_check=%q err=%v)", ok, qerr)
@@ -454,11 +454,12 @@ func (s *Store) MappedSiteUUIDs(gcIDs []int64) ([]string, error) {
 	for _, id := range gcIDs {
 		args = append(args, id)
 	}
+	//nolint:gosec // ph es una cadena de placeholders "?" generada localmente, no entrada externa.
 	rows, err := s.db.Query(`SELECT DISTINCT site_uuid FROM gc_site_map WHERE gc_site_id IN (`+ph+`)`, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []string
 	for rows.Next() {
 		var u string

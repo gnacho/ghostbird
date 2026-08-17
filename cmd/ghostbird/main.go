@@ -46,7 +46,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 
 	var gc *gcauth.Authenticator
 	if cfg.GoatCounterDB != "" {
@@ -54,7 +54,7 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("goatcounter: %w", err)
 		}
-		defer gc.Close()
+		defer func() { _ = gc.Close() }()
 		log.Info("auth GoatCounter activa", "db", cfg.GoatCounterDB)
 	}
 

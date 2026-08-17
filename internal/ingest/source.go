@@ -69,9 +69,8 @@ func domainWithoutWWW(s string) string {
 	// Quitar esquema si es URL.
 	if i := strings.Index(s, "://"); i >= 0 {
 		s = s[i+3:]
-	} else if strings.HasPrefix(s, "//") {
-		s = s[2:]
 	}
+	s = strings.TrimPrefix(s, "//")
 	// Quedarse con el host: hasta /, ? o #.
 	if i := strings.IndexAny(s, "/?#"); i >= 0 {
 		s = s[:i]

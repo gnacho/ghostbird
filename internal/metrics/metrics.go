@@ -70,7 +70,7 @@ func (m *Metrics) SetExtra(f func() []string) {
 func (m *Metrics) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		fmt.Fprint(w, m.Render())
+		_, _ = fmt.Fprint(w, m.Render())
 	})
 }
 

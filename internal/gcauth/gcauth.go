@@ -73,7 +73,7 @@ func Open(path string) (*Authenticator, error) {
 	// serializamos validaciones concurrentes.
 	db.SetMaxOpenConns(2)
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("ping goatcounter db: %w", err)
 	}
 	return &Authenticator{

@@ -82,7 +82,7 @@ func (e *Engine) topPages(p Params) ([]row, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []row
 	for rows.Next() {
 		var postUUID, pathname string
@@ -111,7 +111,7 @@ func (e *Engine) postVisitorCounts(p Params) ([]row, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []row
 	for rows.Next() {
 		var postUUID string
@@ -143,7 +143,7 @@ func (e *Engine) firstHitGroupBy(p Params, col, _ string, includeEmpty bool) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []row
 	for rows.Next() {
 		var v string
@@ -172,7 +172,7 @@ func (e *Engine) topLocations(p Params) ([]row, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []row
 	for rows.Next() {
 		var v string
@@ -237,7 +237,7 @@ func (e *Engine) giftLinkVisits(p Params) ([]row, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []row
 	for rows.Next() {
 		var gl string
@@ -285,11 +285,11 @@ func (e *Engine) kpis(p Params) ([]row, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var sid string
 		var a sessAgg
 		if err := rows.Scan(&sid, &a.firstTs, &a.lastTs, &a.pv); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		k := bucketKey(a.firstTs, p.Loc, hourly)
@@ -297,7 +297,6 @@ func (e *Engine) kpis(p Params) ([]row, error) {
 			sessBuckets[k] = append(sessBuckets[k], a)
 		}
 	}
-	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -315,17 +314,16 @@ func (e *Engine) kpis(p Params) ([]row, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer func() { _ = hrows.Close() }()
 		for hrows.Next() {
 			var ts int64
 			if err := hrows.Scan(&ts); err != nil {
-				hrows.Close()
 				return nil, err
 			}
 			if k := bucketKey(ts, p.Loc, hourly); keySet[k] {
 				pvByBucket[k]++
 			}
 		}
-		hrows.Close()
 		if err := hrows.Err(); err != nil {
 			return nil, err
 		}
