@@ -1,8 +1,8 @@
 /* GhostBird landing: i18n ES/EN (tema Luminex) */
 const I18N = {
   es: {
-    "meta.title": "GhostBird: recambio libre y autoalojado de Tinybird para Ghost",
-    "meta.desc": "Pieza de sustitución autoalojada para las estadísticas nativas de Ghost 6.x. Un binario Go, un fichero SQLite, AGPL-3.0 y cero telemetría.",
+    "meta.title": "GhostBird: alternativa libre y autoalojada a Tinybird para Ghost",
+    "meta.desc": "Reemplazo abierto y autoalojado para las estadísticas nativas de Ghost 6.x. Alternativa a Tinybird con un binario Go, SQLite y AGPL-3.0. Sin telemetría.",
     "misc.skip": "Saltar al contenido",
     "misc.copied": "Copiado",
     "brand": "GhostBird",
@@ -16,7 +16,7 @@ const I18N = {
     "hero.eyebrow": "Self-hosted · AGPL-3.0",
     "hero.h1a": "Estadísticas de Ghost,",
     "hero.h1g": "autoalojadas",
-    "hero.sub": "Sustituye al cloud propietario detrás de las estadísticas de Ghost 6: un binario Go, un fichero SQLite y el dashboard de siempre, leyendo de tu servidor.",
+    "hero.sub": "Sustituye al cloud propietario detrás de las estadísticas de Ghost 6: alternativa libre y autoalojada a Tinybird, con un binario Go, SQLite y el dashboard de siempre.",
     "hero.cta1": "Instalar",
     "hero.cta2": "Cómo funciona",
     "mock.header": "Ghost · Panel de estadísticas",
@@ -126,8 +126,8 @@ const I18N = {
   },
 
   en: {
-    "meta.title": "GhostBird: self-hosted Tinybird replacement for Ghost",
-    "meta.desc": "A drop-in replacement for the native analytics of Ghost 6.x. One Go binary, one SQLite file, AGPL-3.0 and zero telemetry.",
+    "meta.title": "GhostBird: open source Tinybird alternative for Ghost analytics",
+    "meta.desc": "Open-source, self-hosted drop-in replacement for Ghost 6 native analytics. One Go binary, one SQLite file, AGPL-3.0. A Tinybird alternative with zero telemetry.",
     "misc.skip": "Skip to content",
     "misc.copied": "Copied",
     "brand": "GhostBird",
@@ -141,7 +141,7 @@ const I18N = {
     "hero.eyebrow": "Self-hosted · AGPL-3.0",
     "hero.h1a": "Ghost analytics,",
     "hero.h1g": "self-hosted",
-    "hero.sub": "It replaces the proprietary cloud behind Ghost 6 analytics: one Go binary, one SQLite file, and the same dashboard, now reading from your server.",
+    "hero.sub": "It replaces the proprietary cloud behind Ghost 6 analytics: an open source Tinybird alternative, with one Go binary, one SQLite file, and the same dashboard.",
     "hero.cta1": "Install",
     "hero.cta2": "How it works",
     "mock.header": "Ghost · Analytics panel",
