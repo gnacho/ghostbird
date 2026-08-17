@@ -963,6 +963,29 @@ section[id] { scroll-margin-top: 86px; }
   .who-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
+/* ---------- Twin layout: features & who share a horizontal reading line on desktop ---------- */
+
+@media (min-width: 980px) {
+  #features,
+  #who {
+    display: grid;
+    grid-template-columns: minmax(230px, 0.92fr) 2fr;
+    gap: 44px;
+    align-items: start;
+  }
+
+  #features .sec-head,
+  #who .sec-head {
+    max-width: none;
+    margin-bottom: 0;
+  }
+
+  #features .feat-grid,
+  #who .who-grid {
+    margin-top: 0;
+  }
+}
+
 /* ---------- FAQ ---------- */
 
 .faq-list {
@@ -971,6 +994,8 @@ section[id] { scroll-margin-top: 86px; }
   display: grid;
   gap: 12px;
 }
+
+#faq .sec-head { text-align: center; margin-left: auto; margin-right: auto; }
 
 .faq-item { overflow: hidden; }
 
@@ -1044,6 +1069,10 @@ section[id] { scroll-margin-top: 86px; }
   padding: 40px 26px;
   text-align: center;
   box-shadow: var(--shadow);
+}
+
+@media (min-width: 1440px) {
+  .install-card { max-width: 980px; }
 }
 
 .install-card h2 {
