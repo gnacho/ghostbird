@@ -100,8 +100,10 @@ func (a *Authenticator) Validate(token string) (TokenInfo, bool) {
 
 	var info TokenInfo
 	var sitesJSON string
+	// CAST: GoatCounter puede almacenar permissions con afinidad TEXT
+	// (verificado en producción: "126" como string).
 	err := a.db.QueryRow(`
-		SELECT t.name, t.permissions, t.sites, COALESCE(u.email, '')
+		SELECT t.name, CAST(t.permissions AS INTEGER), t.sites, COALESCE(u.email, '')
 		FROM api_tokens t LEFT JOIN users u ON u.user_id = t.user_id
 		WHERE t.token = ? LIMIT 1`, token).
 		Scan(&info.Name, &info.Permissions, &sitesJSON, &info.Email)
