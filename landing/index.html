@@ -136,6 +136,8 @@
       <symbol id="i-coffee" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></symbol>
       <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
       <symbol id="i-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></symbol>
+      <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
     </defs>
   </svg>
 
@@ -314,7 +316,42 @@
       </figure>
     </section>
 
-    <!-- 5. Stats counters -->
+    <!-- 5. Galería de capturas reales -->
+    <section class="sec" id="gallery" aria-labelledby="gal-title">
+      <div class="sec-head">
+        <p class="eyebrow" data-i18n="gallery.eyebrow">Así se ve</p>
+        <h2 id="gal-title" data-i18n="gallery.title">No es un mockup</h2>
+        <p class="gal-sub" data-i18n="gallery.sub">Estas capturas salen del dashboard nativo de Ghost (Ghost 6.57) de un sitio real en producción, alimentado por GhostBird. Sin retoques.</p>
+      </div>
+      <div class="shots-grid" data-reveal-group>
+        <figure class="shot-card glass" data-reveal>
+          <div class="shot-bar">
+            <span class="mock-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="shot-domain mono">ghost.openerpspain.com</span>
+            <span class="shot-zoom" aria-hidden="true"><svg class="icon"><use href="#i-maximize"/></svg></span>
+          </div>
+          <button class="shot-btn" type="button" data-shot="dashboard" aria-label="Ampliar la captura: overview" data-i18n-aria="gallery.open1">
+            <img data-src="assets/shots/dashboard.webp" alt="Captura del dashboard de Ghost: overview con visitantes únicos, sesiones y fuentes de tráfico" data-i18n-alt="gallery.alt1" width="1440" height="702" loading="lazy" decoding="async">
+            <noscript><style>.shot-btn img[data-src]{display:none}</style><img src="assets/shots/dashboard.webp" alt="Captura del dashboard de Ghost: overview con visitantes únicos, sesiones y fuentes de tráfico" width="1440" height="702" loading="lazy"></noscript>
+          </button>
+          <figcaption data-i18n="gallery.cap1">Overview: visitors, sessions y fuentes</figcaption>
+        </figure>
+        <figure class="shot-card glass" data-reveal>
+          <div class="shot-bar">
+            <span class="mock-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="shot-domain mono">ghost.openerpspain.com</span>
+            <span class="shot-zoom" aria-hidden="true"><svg class="icon"><use href="#i-maximize"/></svg></span>
+          </div>
+          <button class="shot-btn" type="button" data-shot="webtraffic" aria-label="Ampliar la captura: web traffic" data-i18n-aria="gallery.open2">
+            <img data-src="assets/shots/webtraffic.webp" alt="Captura del dashboard de Ghost: web traffic con audiencias y desglose por fuente" data-i18n-alt="gallery.alt2" width="1440" height="702" loading="lazy" decoding="async">
+            <noscript><style>.shot-btn img[data-src]{display:none}</style><img src="assets/shots/webtraffic.webp" alt="Captura del dashboard de Ghost: web traffic con audiencias y desglose por fuente" width="1440" height="702" loading="lazy"></noscript>
+          </button>
+          <figcaption data-i18n="gallery.cap2">Web traffic: audiencias y desglose</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 6. Stats counters -->
     <section class="sec stats-band" id="stats">
       <h2 class="sr-only" data-i18n="st.sronly">Cifras de GhostBird</h2>
       <div class="stats-grid" data-reveal-group>
@@ -542,6 +579,16 @@
     </div>
   </footer>
 
+  <!-- Lightbox de capturas (se activa con JS al pulsar una captura) -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Captura ampliada" data-i18n-aria="gallery.lb" hidden>
+    <button class="lb-close" id="lbClose" type="button" aria-label="Cerrar" data-i18n-aria="gallery.close">
+      <svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>
+    </button>
+    <figure class="lb-fig">
+      <img id="lbImg" alt="">
+      <figcaption id="lbCap"></figcaption>
+    </figure>
+  </div>
 
   <script src="i18n.js?v=3"></script>
   <script src="app.js?v=3"></script>
