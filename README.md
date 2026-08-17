@@ -5,6 +5,8 @@ Ghost's native analytics.
 
 One Go binary. One SQLite file. Your analytics never leave your server.
 
+**Live landing page:** [ghostbird.cloudless.club](https://ghostbird.cloudless.club/) — screenshots, feature summary and the one-liner installer.
+
 **Status**: working end to end against Ghost 6.x (tested with Ghost
 6.57.1). See [Verified](#verified-against-the-real-thing). Licensed
 AGPL-3.0, forever.
@@ -242,7 +244,8 @@ lives in the commit history.
 
 ## Roadmap
 
-- Public repository and tagged releases (the installer ships already).
+- ✅ **v0.5.0 released** — public repository, tagged releases and a live landing page at [ghostbird.cloudless.club](https://ghostbird.cloudless.club/).
+- CI/CD workflows for tests and releases.
 - Optional PostgreSQL backend for very high traffic sites.
 - Rate limiting and per-site quotas in-process (nginx covers it today).
 - Localization of the (minimal) operator-facing strings.

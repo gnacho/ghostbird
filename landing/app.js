@@ -285,8 +285,7 @@
 
   /* ---------- Lightbox de capturas ---------- */
   var SHOTS = {
-    dashboard: { file: 'assets/shots/dashboard.webp', alt: 'gallery.alt1', cap: 'gallery.cap1' },
-    webtraffic: { file: 'assets/shots/webtraffic.webp', alt: 'gallery.alt2', cap: 'gallery.cap2' }
+    dashboard: { file: 'assets/shots/dashboard.webp', alt: 'gallery.alt1', cap: 'gallery.cap1' }
   };
   var lightbox = document.getElementById('lightbox');
   var lbImg = document.getElementById('lbImg');
