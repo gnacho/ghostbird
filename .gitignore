@@ -5,7 +5,7 @@
 /data/
 
 # Binarios
-ghostbird
+/ghostbird
 dist/
 
 # Entorno
