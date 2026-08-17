@@ -181,9 +181,43 @@ resolvable hostname (or the same public `/ghb/` path). With
 |---|---|
 | `POST /api/v1/page_hit` | Collector called by visitors' browsers. Bots get the same 202 and are dropped. |
 | `POST /v0/events` | Events API, for compatibility with the official TrafficAnalytics collector if you prefer to run one. NDJSON, deduplicated by event id. |
-| `GET/POST /v0/pipes/{name}.json` | The 13 query endpoints the dashboard consumes. JWT HS256 (Bearer or `?token=`) or a static token. |
+| `GET/POST /v0/pipes/{name}.json` | The 13 query endpoints the dashboard consumes. JWT HS256 (Bearer or `?token=`), a static token, or a GoatCounter API token. |
 | `GET /healthz` | Read probe plus a write probe (`last_write_ok_sec`): 503 when the database cannot accept writes. |
 | `GET /metrics` | Prometheus text format. Ingest counters, per-pipe latency, database sizes. |
+
+## Shared identity with GoatCounter (optional)
+
+If you also run [GoatCounter](https://github.com/arp242/goatcounter), point
+GhostBird at its database and GoatCounter API tokens become a third way to
+authenticate pipe reads:
+
+```sh
+./ghostbird -goatcounter-db /path/to/goatcounter/db.sqlite3 ...
+```
+
+Rules (mirroring GoatCounter's own semantics, from its source):
+
+- The token must exist in GoatCounter's `api_tokens` and carry the
+  "Read statistics" permission (bit 64).
+- A token scoped to `[-1]` (all sites) can read any site's pipes; the query
+  must name the `site_uuid` explicitly.
+- A token scoped to specific site IDs can only read the Ghost sites mapped
+  to them in the `gc_site_map` table (migration v4). If the token maps to
+  exactly one site, the `site_uuid` can be omitted and is injected.
+- Lookups are read-only (`mode=ro` + `PRAGMA query_only`) and cached in
+  memory: 5 minutes for valid tokens, 30 seconds for unknown ones.
+- Once any authentication mechanism is configured (JWT secret, static token
+  or GoatCounter), the open local mode is disabled: fail closed.
+
+The mapping is just rows; adapt it to your setup:
+
+```sql
+INSERT INTO gc_site_map (gc_site_id, site_uuid)
+VALUES (10, '507a78ce-6b95-4913-884b-18138db8f048');
+```
+
+One identity system for your whole analytics stack: the same token that
+reads GoatCounter reads GhostBird, with the same permission model.
 
 ## Verified against the real thing
 

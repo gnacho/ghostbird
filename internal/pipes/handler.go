@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gnacho/ghostbird/internal/config"
+	"github.com/gnacho/ghostbird/internal/gcauth"
 	"github.com/gnacho/ghostbird/internal/metrics"
 	"github.com/gnacho/ghostbird/internal/store"
 )
@@ -19,15 +20,17 @@ import (
 type Handler struct {
 	cfg  *config.Config
 	eng  *Engine
+	st   *store.Store
+	gc   *gcauth.Authenticator // nil = desactivado
 	log  *slog.Logger
 	m    *metrics.Metrics
 	nowF func() time.Time
 }
 
-// NewHandler construye el handler de pipes (m puede ser nil: no-op).
-func NewHandler(cfg *config.Config, st *store.Store, log *slog.Logger, m *metrics.Metrics) *Handler {
+// NewHandler construye el handler de pipes (m y gc pueden ser nil: no-op).
+func NewHandler(cfg *config.Config, st *store.Store, log *slog.Logger, m *metrics.Metrics, gc *gcauth.Authenticator) *Handler {
 	nowF := time.Now
-	return &Handler{cfg: cfg, eng: NewEngine(st, nowF), log: log, m: m, nowF: nowF}
+	return &Handler{cfg: cfg, eng: NewEngine(st, nowF), st: st, gc: gc, log: log, m: m, nowF: nowF}
 }
 
 // ServeHTTP enruta /v0/pipes/{name}.json. El hook useQuery de
@@ -126,13 +129,54 @@ func (h *Handler) authorize(r *http.Request, pipe string) bool {
 		}
 		// No era JWT válido: cae al token estático si coincide.
 	}
+	// Tokens de la API de GoatCounter (identidad compartida del ecosistema):
+	// requieren el permiso de lectura de estadísticas y respetan el alcance
+	// de sitios del token ([-1] = todos; si no, el mapeo gc_site_map).
+	if h.gc != nil && bearer != "" {
+		if info, found := h.gc.Validate(bearer); found {
+			if !info.HasStats() {
+				h.log.Warn("token goatcounter sin permiso stats", "token", info.Name, "email", info.Email)
+				return false
+			}
+			if info.AllSites() {
+				// Acceso a todos los sitios: la query debe traer su site_uuid
+				// (no hay fixed_params que inyectar).
+				return true
+			}
+			mapped, err := h.st.MappedSiteUUIDs(info.Sites)
+			if err != nil {
+				h.log.Error("gc_site_map", "error", err)
+				return false
+			}
+			querySite := q.Get("site_uuid")
+			if querySite == "" {
+				// Sin site en la query: si el token mapea exactamente un
+				// sitio, se inyecta (comodidad para dashboards).
+				if len(mapped) == 1 {
+					q.Set("site_uuid", mapped[0])
+					r.URL.RawQuery = q.Encode()
+					return true
+				}
+				return false
+			}
+			for _, u := range mapped {
+				if u == querySite {
+					return true
+				}
+			}
+			h.log.Warn("token goatcounter sin acceso al sitio", "token", info.Name, "sites", len(info.Sites))
+			return false
+		}
+		// Token no encontrado en GoatCounter: cae al estático si coincide.
+	}
 	if h.cfg.StatsToken != "" {
 		ok1 := subtle.ConstantTimeCompare([]byte(bearer), []byte(h.cfg.StatsToken)) == 1
 		ok2 := subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("token")), []byte(h.cfg.StatsToken)) == 1
 		return ok1 || ok2
 	}
-	if h.cfg.AdminToken != "" {
-		return false // AdminToken configurado exige JWT (o stats-token)
+	if h.cfg.AdminToken != "" || h.gc != nil {
+		// Con cualquier mecanismo de auth configurado no hay modo abierto.
+		return false
 	}
 	return true // sin auth configurada: modo local abierto
 }

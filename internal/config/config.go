@@ -21,6 +21,8 @@ type Config struct {
 	LogLevel      string
 	RetentionDays int    // días de eventos raw a conservar (0 = ilimitado)
 	BackupDir     string // directorio de backups diarios VACUUM INTO ("" = sin backup)
+
+	GoatCounterDB string // BD de GoatCounter para delegar auth de pipes ("" = desactivado)
 }
 
 // Load parsea flags y variables de entorno. Los flags ganan si se pasan
@@ -42,6 +44,7 @@ func Load() (*Config, error) {
 	flag.BoolVar(&c.TrustProxy, "trust-proxy", envOrBool("TRUST_PROXY", true), "confiar en X-Forwarded-For (IP cliente = primera entrada)")
 	flag.IntVar(&c.RetentionDays, "retention-days", retDays, "días de eventos a conservar (0 = ilimitado)")
 	flag.StringVar(&c.BackupDir, "backup-dir", envOr("BACKUP_DIR", ""), "directorio para backups diarios VACUUM INTO (vacío = sin backup)")
+	flag.StringVar(&c.GoatCounterDB, "goatcounter-db", envOr("GOATCOUNTER_DB", ""), "BD de GoatCounter: sus tokens de API (con permiso stats) autentican los pipes (vacío = desactivado)")
 	flag.StringVar(&c.LogLevel, "log-level", envOr("LOG_LEVEL", "info"), "nivel de log (debug|info|warn|error)")
 	flag.Parse()
 

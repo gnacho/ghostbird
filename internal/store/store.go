@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -116,6 +117,16 @@ var migrations = []string{
 	) WHERE rn = 1
 	ON CONFLICT(site_uuid, session_id) DO NOTHING;
 	`,
+	// v4: mapeo sitio GoatCounter → site_uuid GhostBird, para tokens de
+	// GoatCounter con alcance restringido (gcauth). Un sitio GC puede
+	// mapear a varios sites de GhostBird y viceversa.
+	`
+	CREATE TABLE IF NOT EXISTS gc_site_map (
+		gc_site_id INTEGER NOT NULL,
+		site_uuid TEXT NOT NULL,
+		PRIMARY KEY (gc_site_id, site_uuid)
+	);
+	`,
 }
 
 // Open abre (o crea) la base de datos, aplica las pragmas de producción y
@@ -178,6 +189,12 @@ func (s *Store) Close() error {
 func (s *Store) Ping() error {
 	var one int
 	return s.db.QueryRow(`SELECT 1`).Scan(&one)
+}
+
+// Exec ejecuta una sentencia de escritura (seeding del mapping gc_site_map,
+// mantenimiento; el pipeline normal usa InsertEvents).
+func (s *Store) Exec(query string, args ...any) (sql.Result, error) {
+	return s.db.Exec(query, args...)
 }
 
 // Query ejecuta una consulta de solo lectura (pipes de la fase 2, tests).
@@ -424,6 +441,33 @@ func (s *Store) Backup(destPath string) error {
 		return err
 	}
 	return nil
+}
+
+// MappedSiteUUIDs devuelve los site_uuid de GhostBird mapeados a los IDs de
+// sitio GoatCounter dados (tabla gc_site_map, migración v4).
+func (s *Store) MappedSiteUUIDs(gcIDs []int64) ([]string, error) {
+	if len(gcIDs) == 0 {
+		return nil, nil
+	}
+	ph := strings.TrimSuffix(strings.Repeat("?,", len(gcIDs)), ",")
+	args := make([]any, 0, len(gcIDs))
+	for _, id := range gcIDs {
+		args = append(args, id)
+	}
+	rows, err := s.db.Query(`SELECT DISTINCT site_uuid FROM gc_site_map WHERE gc_site_id IN (`+ph+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var u string
+		if err := rows.Scan(&u); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
 }
 
 // TouchHeartbeat escribe el heartbeat de una fila (write-probe de healthz).
