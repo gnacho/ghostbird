@@ -1,0 +1,46 @@
+name: Install test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: Test install.sh one-liner
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Create fake systemctl
+        run: |
+          mkdir -p /tmp/fakebin
+          cat > /tmp/fakebin/systemctl <<'FAKE'
+          #!/bin/sh
+          exit 0
+          FAKE
+          chmod +x /tmp/fakebin/systemctl
+          echo "/tmp/fakebin" >> "$GITHUB_PATH"
+
+      - name: Run install.sh (dry-run)
+        run: sh install.sh --dry-run
+
+      - name: Run install.sh (real install)
+        run: |
+          GHOSTBIRD_INSTALL_ROOT=/tmp/ghostbird-test sh install.sh
+          test -x /tmp/ghostbird-test/opt/ghostbird/bin/ghostbird
+          test -f /tmp/ghostbird-test/etc/ghostbird/ghostbird.env
+          test -f /tmp/ghostbird-test/etc/systemd/system/ghostbird.service
+          /tmp/ghostbird-test/opt/ghostbird/bin/ghostbird -h
