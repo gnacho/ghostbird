@@ -1,0 +1,3 @@
+name: "GhostBird CodeQL config"
+
+queries: +security-extended

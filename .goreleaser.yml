@@ -1,0 +1,48 @@
+version: 2
+
+project_name: ghostbird
+
+builds:
+  - id: ghostbird
+    main: ./cmd/ghostbird
+    binary: ghostbird
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: binaries
+    format: binary
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    allow_different_binary_count: true
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs"
+      - "^test"
+      - "^ci"
+      - "^chore"
+      - "^style"
+
+release:
+  github:
+    owner: gnacho
+    name: ghostbird
+  draft: false
+  prerelease: auto

@@ -1,0 +1,20 @@
+run:
+  timeout: 5m
+  go: "1.26"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocritic
+    - gosec
+    - misspell
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 50
+  max-same-issues: 3

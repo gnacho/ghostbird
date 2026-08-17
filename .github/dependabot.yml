@@ -1,0 +1,21 @@
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, ci]
