@@ -4,6 +4,8 @@ Drop-in replacement **self-hosted de Tinybird** para las estadísticas nativas d
 Filosofía GoatCounter: **un binario Go + un fichero SQLite + cero configuración obligatoria**.
 Ghost sigue creyendo que habla con Tinybird; solo cambias la URL de conexión.
 
+**Landing pública:** [ghostbird.cloudless.club](https://ghostbird.cloudless.club/) — capturas, resumen de funciones e instalador one-liner.
+
 ```
 ┌──────────────┐  1. page_hit   ┌────────────────────────────┐        ┌──────────────────┐
 │ Visitante    │───────────────►│  GhostBird (Go, 1 binario) │───────►│ SQLite (default) │
@@ -56,7 +58,7 @@ lo auto-firma Ghost con un secreto compartido, y la entrega es at-least-once (de
 | 2. Pipes lectura | ✅ Completada | 13 pipes v1 + JWT HS256 scoped + `filtered_sessions` en SQLite. **Tests de fidelidad: la suite YAML oficial de Tinybird pasa entera contra el mismo fixture.** |
 | 3. Integración Ghost | ✅ Completada | Verificado end-to-end con Ghost 6.57.1 real: tracker en el HTML, page_hit del navegador real almacenado, JWT firmado por Ghost, dashboard Admin pintando "Unique visitors" y "online" desde GhostBird. |
 | 4. Robustez | 🔶 Esencial hecha | Job nocturno: purge de sales, retención configurable (`-retention-days`), backup diario verificado con VACUUM INTO + rotación 14 días (`-backup-dir`), `PRAGMA optimize`+checkpoint. Pendiente: rate limiting, métricas Prometheus, cobertura >70%. |
-| 5. Comunidad | ⬜ | README EN/ES, instalador one-liner, CI, licencia (a decidir), anuncio. |
+| 5. Comunidad | ✅ Completada | README EN/ES, instalador one-liner, licencia AGPL-3.0 y landing pública en [ghostbird.cloudless.club](https://ghostbird.cloudless.club/). Pendiente: CI y anuncio. |
 
 ## Deploy con Ghost real (verificado con Ghost 6.57.1)
 
