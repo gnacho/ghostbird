@@ -21,7 +21,7 @@ builds:
 
 archives:
   - id: binaries
-    format: binary
+    formats: [binary]
     name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
     allow_different_binary_count: true
 
@@ -31,7 +31,7 @@ checksum:
 
 changelog:
   sort: asc
-  use: github
+  use: git
   filters:
     exclude:
       - "^docs"
